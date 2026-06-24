@@ -6,7 +6,6 @@ import CharactersModule  from './bible/CharactersModule'
 import TiesThatBind      from './bible/TiesThatBind'
 import LocationsModule   from './bible/LocationsModule'
 import WritingEditor     from './editor/WritingEditor'
-import AITools           from './ai/AITools'
 import Settings          from './shared/Settings'
 
 const NAV = [
@@ -15,7 +14,6 @@ const NAV = [
   { id: 'ties',       icon: '⬡', label: 'Ties That Bind' },
   { id: 'locations',  icon: '◎', label: 'Locations'       },
   { id: 'write',      icon: '▤', label: 'Write'           },
-  { id: 'ai',         icon: '✦', label: 'AI Tools'        },
 ]
 
 export default function Shell({ project, onExit }) {
@@ -168,7 +166,6 @@ export default function Shell({ project, onExit }) {
             {module === 'ties'       && <TiesThatBind      {...shared} {...charOps} {...relOps} />}
             {module === 'locations'  && <LocationsModule   {...shared} {...locOps} />}
             {module === 'write'      && <WritingEditor     {...shared} onSaveScript={saveScript} onUpdateRelationship={updateRelationship} />}
-            {module === 'ai'         && <AITools           {...shared} />}
           </>
         )}
       </main>
