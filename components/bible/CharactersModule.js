@@ -2,15 +2,17 @@
 import { useState } from 'react'
 
 const FIELDS = [
-  {key:'role',        label:'Role in story',       placeholder:'Protagonist, antagonist…',          rows:1},
-  {key:'age',         label:'Age',                  placeholder:'Age or range',                       rows:1},
-  {key:'backstory',   label:'Backstory',            placeholder:'Who are they before the story?',    rows:3},
-  {key:'goals',       label:'Goals',                placeholder:'What do they want above all else?', rows:2},
-  {key:'fears',       label:'Fears',                placeholder:'What would break them?',            rows:2},
-  {key:'motivations', label:'Motivations',          placeholder:'Why do they want what they want?',  rows:2},
-  {key:'personality', label:'Personality',          placeholder:'How do they move through the world?',rows:2},
+  {key:'role',        label:'Role in story',         placeholder:'Protagonist, antagonist…',                             rows:1},
+  {key:'age',         label:'Age',                    placeholder:'Age or range',                                          rows:1},
+  {key:'gender',      label:'Gender',                 placeholder:'e.g. Woman, Man, Non-binary, or how they identify…',   rows:1},
+  {key:'physical',    label:'Physical description',   placeholder:'Height, build, distinguishing features, how they carry themselves…', rows:3},
+  {key:'backstory',   label:'Backstory',              placeholder:'Who are they before the story?',                       rows:3},
+  {key:'goals',       label:'Goals',                  placeholder:'What do they want above all else?',                   rows:2},
+  {key:'fears',       label:'Fears',                  placeholder:'What would break them?',                              rows:2},
+  {key:'motivations', label:'Motivations',            placeholder:'Why do they want what they want?',                    rows:2},
+  {key:'personality', label:'Personality',            placeholder:'How do they move through the world?',                  rows:2},
   {key:'voice',       label:'Voice & speech patterns',placeholder:'How do they talk? Rhythm, vocabulary, what they avoid…',rows:2},
-  {key:'notes',       label:'Notes',                placeholder:'Anything else worth tracking…',     rows:2},
+  {key:'notes',       label:'Notes',                  placeholder:'Anything else worth tracking…',                       rows:2},
 ]
 
 const COLORS = ['#C8A96A','#58A6FF','#3FB950','#DB61A2','#FF7B72','#D2A8FF','#FFA657','#38BDAE']
