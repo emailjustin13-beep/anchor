@@ -1,9 +1,71 @@
 'use client'
+import { useState, useEffect } from 'react'
+import { callAI } from '../../lib/ai'
+
 const REL_COLORS = { ally:'#3FB950',rival:'#F85149',romantic:'#DB61A2',family:'#58A6FF',mentor:'#D2A8FF',enemy:'#FF7B72',complicated:'#FFA657',stranger:'#6A6A88' }
 const FORMAT_LABELS = { screenplay:'Screenplay',novel:'Novel',short_story:'Short Story' }
 
+function buildInsightsPrompt({ project, characters, relationships, script }) {
+  const scriptText = script?.content ? script.content.replace(/\[\w+\]/g, '').trim() : ''
+  const charSummaries = characters.map(c =>
+    `${c.name} (${c.role || 'no role'}): Goals — ${c.goals || 'none listed'}. Fears — ${c.fears || 'none listed'}.`
+  ).join('\n')
+  const relSummaries = relationships.map(r => {
+    const a = characters.find(c => c.id === r.character_a)
+    const b = characters.find(c => c.id === r.character_b)
+    return `${a?.name} ↔ ${b?.name}: ${r.type}, tension ${r.tension ?? 0}/100. ${r.status || ''}`
+  }).join('\n')
+
+  return {
+    system: `You are Anchor — a story bible reader, not a writer. You read what the writer has built and reflect it back clearly. You never suggest what should happen next. You never generate new content. You only surface what is already there — patterns, tensions, states. Be concise. Respond only in the JSON format requested.`,
+    messages: [{
+      role: 'user',
+      content: `Here is the story bible for "${project.title}":
+
+CHARACTERS:
+${charSummaries || 'None yet.'}
+
+RELATIONSHIPS:
+${relSummaries || 'None yet.'}
+
+SCRIPT SO FAR:
+${scriptText ? scriptText.slice(0, 3000) : 'Nothing written yet.'}
+
+Return a JSON object with exactly these three keys:
+{
+  "whereYouAre": "One paragraph (2-4 sentences) reflecting where the story currently stands based only on what has been written. No suggestions. Just a clear-eyed summary of the current state.",
+  "dynamics": ["Up to 3 short observations about character dynamics or relationship tensions that are already present in the bible. Each under 20 words. Only observations, never suggestions."],
+  "pulse": ["Up to 4 short scene or story beat labels in chronological order from the script, each under 8 words. If no script, return empty array."]
+}
+
+Return only valid JSON. No preamble, no markdown.`
+    }]
+  }
+}
+
 export default function BibleDashboard({ project, characters, relationships, locations, script, onNavigate }) {
   const words = script?.content ? script.content.replace(/\[\w+\]/g,'').split(/\s+/).filter(Boolean).length : 0
+  const [insights, setInsights] = useState(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsError, setInsightsError] = useState('')
+
+  useEffect(() => {
+    if (characters.length > 0) loadInsights()
+  }, [project.id])
+
+  async function loadInsights() {
+    setInsightsLoading(true)
+    setInsightsError('')
+    try {
+      const prompt = buildInsightsPrompt({ project, characters, relationships, script })
+      const raw = await callAI(prompt)
+      const clean = raw.replace(/```json|```/g, '').trim()
+      setInsights(JSON.parse(clean))
+    } catch(e) {
+      setInsightsError('Insights unavailable')
+    }
+    setInsightsLoading(false)
+  }
 
   return (
     <div style={{ flex:1, overflow:'auto', padding:'28px 32px', background:'var(--bg)' }}>
@@ -16,6 +78,7 @@ export default function BibleDashboard({ project, characters, relationships, loc
         </div>
       </div>
 
+      {/* Stats row */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:24 }}>
         {[['◉','Characters',characters.length,'characters'],['⬡','Relationships',relationships.length,'ties'],['◎','Locations',locations.length,'locations'],['▤','Words',words.toLocaleString(),'write']].map(([icon,label,val,mod]) => (
           <div key={label} style={{ background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:10, padding:'14px 16px', cursor:'pointer', transition:'border-color .15s' }}
@@ -29,6 +92,80 @@ export default function BibleDashboard({ project, characters, relationships, loc
         ))}
       </div>
 
+      {/* AI Insights panel */}
+      {characters.length > 0 && (
+        <div style={{ background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:10, padding:'18px 20px', marginBottom:24 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div>
+              <span style={{ fontSize:10, fontWeight:500, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.08em' }}>Story Pulse</span>
+              <span style={{ fontSize:10, color:'var(--dim)', marginLeft:8, fontWeight:300 }}>Anchor reading your bible</span>
+            </div>
+            <button onClick={loadInsights} disabled={insightsLoading} style={{ fontSize:10, color:'var(--gold)', background:'none', border:'none', cursor:'pointer', fontWeight:300, opacity: insightsLoading ? 0.4 : 1 }}>
+              {insightsLoading ? '···' : '↻ Refresh'}
+            </button>
+          </div>
+
+          {insightsLoading && (
+            <div style={{ display:'flex', alignItems:'center', gap:8, color:'var(--dim)', fontSize:12, fontWeight:300 }}>
+              <span style={{ display:'inline-flex', gap:3 }}>
+                <Dot delay={0}/><Dot delay={0.2}/><Dot delay={0.4}/>
+              </span>
+              Reading your story…
+            </div>
+          )}
+
+          {insightsError && !insightsLoading && (
+            <div style={{ fontSize:12, color:'var(--dim)', fontStyle:'italic', fontWeight:300 }}>{insightsError}</div>
+          )}
+
+          {insights && !insightsLoading && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+
+              {/* Where You Are */}
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.07em', marginBottom:6, fontWeight:500 }}>Where you are</div>
+                <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.7, fontWeight:300, fontFamily:'var(--font-display)', fontStyle:'italic' }}>{insights.whereYouAre}</div>
+              </div>
+
+              {/* Character Dynamics */}
+              {insights.dynamics?.length > 0 && (
+                <div>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.07em', marginBottom:8, fontWeight:500 }}>Character dynamics</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {insights.dynamics.map((d, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                        <span style={{ color:'var(--gold)', fontSize:10, marginTop:3, flexShrink:0 }}>◆</span>
+                        <span style={{ fontSize:12, color:'var(--muted)', lineHeight:1.5, fontWeight:300 }}>{d}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Story Pulse timeline */}
+              {insights.pulse?.length > 0 && (
+                <div>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.07em', marginBottom:8, fontWeight:500 }}>Story pulse</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                    {insights.pulse.map((beat, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', flexShrink:0 }}>
+                          <div style={{ width:7, height:7, borderRadius:'50%', background: i === insights.pulse.length - 1 ? 'var(--gold)' : 'var(--edge)', border:`1px solid ${i === insights.pulse.length - 1 ? 'var(--gold)' : 'var(--dim)'}`, marginTop:4 }} />
+                          {i < insights.pulse.length - 1 && <div style={{ width:1, height:18, background:'var(--edge)' }} />}
+                        </div>
+                        <span style={{ fontSize:12, color: i === insights.pulse.length - 1 ? 'var(--text)' : 'var(--muted)', lineHeight:1.5, fontWeight: i === insights.pulse.length - 1 ? 400 : 300, paddingBottom: i < insights.pulse.length - 1 ? 10 : 0 }}>{beat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mini panels */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
         <Mini title="Characters" onMore={() => onNavigate('characters')}>
           {characters.length === 0 ? <Empty>No characters yet</Empty> : characters.slice(0,4).map(c => (
@@ -74,6 +211,16 @@ export default function BibleDashboard({ project, characters, relationships, loc
         </Mini>
       </div>
     </div>
+  )
+}
+
+function Dot({ delay }) {
+  return (
+    <span style={{
+      display:'inline-block', width:5, height:5, borderRadius:'50%',
+      background:'var(--gold)', opacity:0.4,
+      animation:`pulse 1.2s ease-in-out ${delay}s infinite`
+    }} />
   )
 }
 
