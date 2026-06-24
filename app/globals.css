@@ -3,19 +3,19 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #09090D;
-  --s1:       #0F0F16;
-  --s2:       #14141E;
-  --s3:       #1A1A28;
-  --edge:     #1E1E2E;
-  --dim:      #35354A;
-  --muted:    #6A6A88;
-  --text:     #E2E2EC;
+  --bg:       #0D0D14;
+  --s1:       #13131C;
+  --s2:       #191924;
+  --s3:       #1F1F2E;
+  --edge:     #28283C;
+  --dim:      #4A4A66;
+  --muted:    #8A8AAE;
+  --text:     #EEEEF6;
   --bright:   #FFFFFF;
-  --gold:     #C8A96A;
-  --gold-dim: #8A7040;
-  --gold-bg:  rgba(200,169,106,.08);
-  --gold-glow:rgba(200,169,106,.15);
+  --gold:     #D4B870;
+  --gold-dim: #9A7A40;
+  --gold-bg:  rgba(212,184,112,.09);
+  --gold-glow:rgba(212,184,112,.16);
 
   /* Relationship colors */
   --ally:        #3FB950;
@@ -53,10 +53,11 @@ input, textarea, select {
   transition: border-color .12s;
 }
 input:focus, textarea:focus, select:focus { border-color: var(--gold); }
+input::placeholder, textarea::placeholder { color: var(--dim); }
 textarea { resize: vertical; }
 select { appearance: none; cursor: pointer; }
 
-label { display: block; font-size: 10px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+label { display: block; font-size: 10px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
