@@ -183,7 +183,8 @@ export default function WritingEditor({ project, script, characters, relationshi
       if (recentText.trim().length < 80) return
       const { systemPrompt, prompt } = buildRelationshipScanPrompt({ scriptChunk: recentText, characters, relationships })
       const raw = await callAI({ systemPrompt, prompt })
-      const result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      console.log('Living Bible raw:', raw.slice(0, 200))
+      const jsonMatch = raw.match(/\{[\s\S]*\}/); if (!jsonMatch) return; const result = JSON.parse(jsonMatch[0])
       if (result.shift_detected) {
         const charA = characters.find(c => c.name === result.character_a)
         const charB = characters.find(c => c.name === result.character_b)
@@ -352,7 +353,7 @@ export default function WritingEditor({ project, script, characters, relationshi
         relationship: rel, otherCharacter: otherChar,
       })
       const raw    = await callAI({ systemPrompt, prompt })
-      const result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      const jsonMatch = raw.match(/\{[\s\S]*\}/); if (!jsonMatch) return; const result = JSON.parse(jsonMatch[0])
       setPtCard({ loading:false, ...result, character, otherChar, rel })
     } catch (err) {
       setPtCard({ loading:false, verdict:'tension', summary:err.message, notes:[], character, otherChar, rel })
