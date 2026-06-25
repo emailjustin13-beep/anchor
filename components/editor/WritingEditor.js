@@ -202,7 +202,7 @@ export default function WritingEditor({ project, script, characters, relationshi
           summary: result.summary,
         })
       }
-    } catch { /* silent */ }
+    } catch (e) { console.error('Living Bible scan error:', e.message) }
     finally { setAiReading(false) }
   }
 
