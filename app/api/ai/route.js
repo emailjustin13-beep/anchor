@@ -4,7 +4,6 @@ export async function POST(request) {
   try {
     const { prompt, systemPrompt, apiKey } = await request.json()
 
-    // Use server-side env key first, fall back to client-provided key
     const key = process.env.ANTHROPIC_API_KEY || apiKey
 
     if (!key) {
@@ -22,7 +21,7 @@ export async function POST(request) {
         'content-type':      'application/json',
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-6',
+        model:      'claude-sonnet-4-5',
         max_tokens: 1500,
         system:     systemPrompt || 'You are a helpful creative writing assistant.',
         messages:   [{ role: 'user', content: prompt }],
