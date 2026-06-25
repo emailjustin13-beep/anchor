@@ -4,9 +4,12 @@ export async function POST(request) {
   try {
     const { prompt, systemPrompt, apiKey } = await request.json()
 
-    if (!apiKey) {
+    // Use server-side env key first, fall back to client-provided key
+    const key = process.env.ANTHROPIC_API_KEY || apiKey
+
+    if (!key) {
       return NextResponse.json(
-        { error: 'No API key. Add your Anthropic key in Settings.' },
+        { error: 'No API key. Add your Anthropic key in Settings or set ANTHROPIC_API_KEY in Vercel.' },
         { status: 401 }
       )
     }
@@ -14,7 +17,7 @@ export async function POST(request) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'x-api-key':         apiKey,
+        'x-api-key':         key,
         'anthropic-version': '2023-06-01',
         'content-type':      'application/json',
       },
