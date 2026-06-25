@@ -113,6 +113,7 @@ export default function WritingEditor({ project, script, characters, relationshi
   const [blocks, setBlocks]         = useState([makeBlock('scene')])
   const [title, setTitle]           = useState('')
   const [focusId, setFocusId]       = useState(null)
+  const [activePageIdx, setActivePageIdx] = useState(0)
   const [saving, setSaving]         = useState(false)
   const [saveMsg, setSaveMsg]       = useState(null)
   const [xrayOpen, setXrayOpen]     = useState(true)
@@ -369,7 +370,7 @@ export default function WritingEditor({ project, script, characters, relationshi
   const pages        = paginateBlocks(blocks)
   const words        = blocks.reduce((n,b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
   const showBanner   = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
-  const activePage   = pages.find(p => p.some(b => b.id === focusId)) || pages[0] || []
+  const activePage   = pages[activePageIdx] || pages[0] || []
   const sceneChars   = detectCharsInScene(activePage, characters)
 
   return (
@@ -490,7 +491,7 @@ export default function WritingEditor({ project, script, characters, relationshi
                     data-placeholder={BLOCKS[block.type]?.hint}
                     onInput={e => handleInput(e, block)}
                     onKeyDown={e => handleKeyDown(e, block)}
-                    onFocus={() => { setFocusId(block.id); setDropdown(false) }}
+                    onFocus={() => { setFocusId(block.id); setDropdown(false); setActivePageIdx(pageIndex) }}
                     onBlur={() => setFocusId(id => id === block.id ? null : id)}
                     style={{
                       ...getBlockCSS(block.type),
