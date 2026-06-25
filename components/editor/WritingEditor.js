@@ -5,23 +5,22 @@ import FirstRead from '../bible/FirstRead'
 
 // ── Block types ────────────────────────────────────────────────
 const BLOCKS = {
-  scene:         { label: 'Scene Heading', hint: 'INT. LOCATION — DAY',        upper: true,  shortcut: 'Ctrl+1' },
-  action:        { label: 'Action',        hint: 'Describe what we see…',      upper: false, shortcut: 'Ctrl+2' },
-  character:     { label: 'Character',     hint: 'CHARACTER NAME',              upper: true,  shortcut: 'Ctrl+3' },
-  dialogue:      { label: 'Dialogue',      hint: 'What they say…',             upper: false, shortcut: 'Ctrl+4' },
-  parenthetical: { label: 'Parenthetical', hint: '(beat)',                      upper: false, shortcut: 'Ctrl+5' },
-  transition:    { label: 'Transition',    hint: 'CUT TO:',                     upper: true,  shortcut: 'Ctrl+6' },
-  shot:          { label: 'Shot',          hint: 'CLOSE ON — DETAIL',           upper: true,  shortcut: 'Ctrl+7' },
-  text:          { label: 'Text',          hint: 'General text or notes…',      upper: false, shortcut: 'Ctrl+8' },
+  scene:         { label: 'Scene Heading', hint: 'INT. LOCATION — DAY',      upper: true,  shortcut: 'Ctrl+1' },
+  action:        { label: 'Action',        hint: 'Describe what we see…',    upper: false, shortcut: 'Ctrl+2' },
+  character:     { label: 'Character',     hint: 'CHARACTER NAME',            upper: true,  shortcut: 'Ctrl+3' },
+  dialogue:      { label: 'Dialogue',      hint: 'What they say…',           upper: false, shortcut: 'Ctrl+4' },
+  parenthetical: { label: 'Parenthetical', hint: '(beat)',                    upper: false, shortcut: 'Ctrl+5' },
+  transition:    { label: 'Transition',    hint: 'CUT TO:',                   upper: true,  shortcut: 'Ctrl+6' },
+  shot:          { label: 'Shot',          hint: 'CLOSE ON — DETAIL',         upper: true,  shortcut: 'Ctrl+7' },
+  text:          { label: 'Text',          hint: 'General text or notes…',    upper: false, shortcut: 'Ctrl+8' },
 }
 const TAB_CYCLE    = Object.keys(BLOCKS)
 const SHORTCUT_MAP = { '1':'scene','2':'action','3':'character','4':'dialogue','5':'parenthetical','6':'transition','7':'shot','8':'text' }
 
-// How many lines each block type roughly occupies (for page-break estimation)
 const BLOCK_LINES = { scene:2, action:1.5, character:1, dialogue:1.2, parenthetical:1, transition:1, shot:1, text:1 }
 const LINES_PER_PAGE = 54
 
-function uid()  { return Math.random().toString(36).slice(2,9) + Date.now().toString(36) }
+function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36) }
 function makeBlock(type='action', text='') { return { id: uid(), type, text } }
 function smartNext(type) {
   if (type === 'character' || type === 'parenthetical') return 'dialogue'
@@ -39,18 +38,15 @@ function deserialize(content) {
   })
 }
 
-// Estimate line count for a block based on type + text length
 function estimateLines(block) {
   const textLines = block.text ? Math.max(1, Math.ceil(block.text.length / 60)) : 1
   return (BLOCK_LINES[block.type] || 1) * textLines
 }
 
-// Split blocks into pages based on line estimates
 function paginateBlocks(blocks) {
   const pages = []
   let current = []
   let lineCount = 0
-
   for (const block of blocks) {
     const lines = estimateLines(block)
     if (lineCount + lines > LINES_PER_PAGE && current.length > 0) {
@@ -65,23 +61,41 @@ function paginateBlocks(blocks) {
   return pages.length > 0 ? pages : [[]]
 }
 
-function getBlockStyle(type) {
+function getBlockCSS(type) {
   const base = {
-    fontFamily: 'var(--font-script)', fontSize: 13, lineHeight: 1.8,
-    color: '#111', background: 'transparent', border: 'none', outline: 'none',
-    resize: 'none', overflow: 'hidden', padding: 0, width: '100%', display: 'block',
+    fontFamily: "'Courier Prime', 'Courier New', monospace",
+    fontSize: '13px', lineHeight: '1.8', color: '#111',
+    outline: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+    minHeight: '1.8em', width: '100%', display: 'block', cursor: 'text',
   }
   switch (type) {
-    case 'scene':         return { ...base, fontWeight:700, marginTop:22, marginBottom:4, textTransform:'uppercase', letterSpacing:'.02em' }
-    case 'action':        return { ...base, marginBottom:8 }
-    case 'character':     return { ...base, fontWeight:700, marginTop:16, marginBottom:0, marginLeft:'37%', width:'26%', textTransform:'uppercase' }
-    case 'dialogue':      return { ...base, marginLeft:'22%', width:'56%', marginBottom:4 }
+    case 'scene':         return { ...base, fontWeight:'700', marginTop:'22px', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'.02em' }
+    case 'action':        return { ...base, marginBottom:'8px' }
+    case 'character':     return { ...base, fontWeight:'700', marginTop:'16px', marginBottom:'0', marginLeft:'37%', width:'26%', textTransform:'uppercase' }
+    case 'dialogue':      return { ...base, marginLeft:'22%', width:'56%', marginBottom:'4px' }
     case 'parenthetical': return { ...base, marginLeft:'30%', width:'40%', fontStyle:'italic' }
-    case 'transition':    return { ...base, textAlign:'right', fontWeight:700, marginTop:12, textTransform:'uppercase' }
-    case 'shot':          return { ...base, fontWeight:700, marginTop:14, marginBottom:2, textTransform:'uppercase', letterSpacing:'.01em' }
-    case 'text':          return { ...base, marginBottom:6, color:'#444', fontStyle:'italic' }
+    case 'transition':    return { ...base, textAlign:'right', fontWeight:'700', marginTop:'12px', textTransform:'uppercase' }
+    case 'shot':          return { ...base, fontWeight:'700', marginTop:'14px', marginBottom:'2px', textTransform:'uppercase', letterSpacing:'.01em' }
+    case 'text':          return { ...base, marginBottom:'6px', color:'#444', fontStyle:'italic' }
     default:              return base
   }
+}
+
+function getSelectedText() {
+  const sel = window.getSelection()
+  if (!sel || sel.isCollapsed) return ''
+  return sel.toString().trim()
+}
+
+// Get all selected block ids from the DOM selection
+function getSelectedBlockIds(sel, refs) {
+  if (!sel || sel.isCollapsed) return []
+  const ids = []
+  for (const [id, el] of Object.entries(refs.current)) {
+    if (!el) continue
+    if (sel.containsNode(el, true)) ids.push(id)
+  }
+  return ids
 }
 
 function detectCharsInScene(blocks, characters) {
@@ -106,30 +120,40 @@ export default function WritingEditor({ project, script, characters, relationshi
   const [dropdownOpen, setDropdown] = useState(false)
 
   // Pressure test
-  const [ptCard, setPtCard]     = useState(null)
+  const [ptCard, setPtCard]       = useState(null)
   const [contextMenu, setCtxMenu] = useState(null)
 
   // Living bible
-  const [whisper, setWhisper]   = useState(null)
-  const [whyOpen, setWhyOpen]   = useState(false)
+  const [whisper, setWhisper]     = useState(null)
+  const [whyOpen, setWhyOpen]     = useState(false)
   const [aiReading, setAiReading] = useState(false)
 
   // First Read
   const [showFirstRead, setShowFirstRead]           = useState(false)
   const [firstReadDismissed, setFirstReadDismissed] = useState(false)
 
-  const refs      = useRef({})
+  const refs      = useRef({})   // blockId → contentEditable DOM el
+  const blocksRef = useRef(blocks) // always-current blocks for event handlers
   const saveTimer = useRef(null)
   const scanTimer = useRef(null)
   const scrollRef = useRef(null)
 
-  useEffect(() => {
-    if (script) { setBlocks(deserialize(script.content)); setTitle(script.title || project.title) }
-  }, [script?.id])
+  // Keep blocksRef in sync
+  useEffect(() => { blocksRef.current = blocks }, [blocks])
 
+  // Load script
   useEffect(() => {
-    if (script?.content && characters.length === 0 && !firstReadDismissed) {
-      // show banner, not overlay automatically
+    if (script) {
+      const parsed = deserialize(script.content)
+      setBlocks(parsed)
+      setTitle(script.title || project.title)
+      // Sync DOM after render
+      setTimeout(() => {
+        for (const b of parsed) {
+          const el = refs.current[b.id]
+          if (el && el.innerText !== b.text) el.innerText = b.text
+        }
+      }, 50)
     }
   }, [script?.id])
 
@@ -187,62 +211,117 @@ export default function WritingEditor({ project, script, characters, relationshi
     scheduleLivingScan(newBlocks)
   }
 
-  function changeText(id, raw) {
-    const block = blocks.find(b => b.id === id)
-    const meta  = BLOCKS[block?.type]
-    const text  = meta?.upper ? raw.toUpperCase() : raw
-    push(blocks.map(b => b.id === id ? { ...b, text } : b))
-  }
+  // ── contentEditable handlers ────────────────────────────────
 
-  function changeType(id, type) {
-    const block = blocks.find(b => b.id === id)
-    const meta  = BLOCKS[type]
-    push(blocks.map(b => b.id === id ? { ...b, type, text: meta.upper ? block.text.toUpperCase() : block.text } : b))
-    setDropdown(false)
-    setTimeout(() => refs.current[id]?.focus(), 20)
-  }
-
-  function insertAfter(id, type) {
-    const nb  = makeBlock(type)
-    const idx = blocks.findIndex(b => b.id === id)
-    push([...blocks.slice(0, idx+1), nb, ...blocks.slice(idx+1)])
-    setTimeout(() => refs.current[nb.id]?.focus(), 30)
-  }
-
-  function deleteBlock(id) {
-    if (blocks.length === 1) return
-    const idx  = blocks.findIndex(b => b.id === id)
-    const next = blocks.filter(b => b.id !== id)
-    push(next)
-    setTimeout(() => refs.current[next[Math.max(0, idx-1)]?.id]?.focus(), 30)
+  function handleInput(e, block) {
+    const el   = e.currentTarget
+    let text   = el.innerText
+    // Strip any HTML that might sneak in
+    if (BLOCKS[block.type]?.upper) text = text.toUpperCase()
+    // Don't re-render if text unchanged (avoids cursor jump)
+    const current = blocksRef.current
+    const updated = current.map(b => b.id === block.id ? { ...b, text } : b)
+    blocksRef.current = updated
+    setBlocks(updated)
+    scheduleAutoSave(updated, title)
+    scheduleLivingScan(updated)
   }
 
   function handleKeyDown(e, block) {
-    // Ctrl+1–8 shortcuts
+    // Ctrl/Cmd + 1–8 shortcut
     if ((e.ctrlKey || e.metaKey) && SHORTCUT_MAP[e.key]) {
       e.preventDefault()
       changeType(block.id, SHORTCUT_MAP[e.key])
       return
     }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); insertAfter(block.id, smartNext(block.type)) }
-    if (e.key === 'Backspace' && block.text === '') { e.preventDefault(); deleteBlock(block.id) }
-    if (e.key === 'Tab') { e.preventDefault(); changeType(block.id, TAB_CYCLE[(TAB_CYCLE.indexOf(block.type)+1) % TAB_CYCLE.length]) }
+
+    // Tab → cycle block type
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      changeType(block.id, TAB_CYCLE[(TAB_CYCLE.indexOf(block.type)+1) % TAB_CYCLE.length])
+      return
+    }
+
+    // Enter → insert new block
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const nextType = smartNext(block.type)
+      const nb = makeBlock(nextType)
+      const current = blocksRef.current
+      const idx = current.findIndex(b => b.id === block.id)
+      const updated = [...current.slice(0, idx+1), nb, ...current.slice(idx+1)]
+      push(updated)
+      setTimeout(() => {
+        const el = refs.current[nb.id]
+        if (el) { el.focus(); placeCaretAtStart(el) }
+      }, 30)
+      return
+    }
+
+    // Backspace on empty block → delete it
+    if (e.key === 'Backspace') {
+      const el = e.currentTarget
+      if (el.innerText === '' || el.innerText === '\n') {
+        e.preventDefault()
+        const current = blocksRef.current
+        if (current.length === 1) return
+        const idx = current.findIndex(b => b.id === block.id)
+        const updated = current.filter(b => b.id !== block.id)
+        push(updated)
+        setTimeout(() => {
+          const prevId = updated[Math.max(0, idx-1)]?.id
+          const prevEl = refs.current[prevId]
+          if (prevEl) { prevEl.focus(); placeCaretAtEnd(prevEl) }
+        }, 30)
+      }
+      return
+    }
+
     if (contextMenu) setCtxMenu(null)
     if (dropdownOpen) setDropdown(false)
   }
 
-  function handleContextMenu(e, block) {
-    const selection = window.getSelection()?.toString().trim()
-    if (!selection) return
+  function changeType(id, type) {
+    const current = blocksRef.current
+    const block   = current.find(b => b.id === id)
+    if (!block) return
+    const meta    = BLOCKS[type]
+    const newText = meta.upper ? block.text.toUpperCase() : block.text
+    const updated = current.map(b => b.id === id ? { ...b, type, text: newText } : b)
+    push(updated)
+    setDropdown(false)
+    // Update DOM text if case changed
+    setTimeout(() => {
+      const el = refs.current[id]
+      if (el && el.innerText !== newText) {
+        el.innerText = newText
+        placeCaretAtEnd(el)
+      }
+      el?.focus()
+    }, 20)
+  }
+
+  // Right-click: capture cross-block selection
+  function handleContextMenu(e) {
+    const selectedText = getSelectedText()
+    if (!selectedText) return
     e.preventDefault()
     const scrollRect = scrollRef.current?.getBoundingClientRect()
-    const idx        = blocks.findIndex(b => b.id === block.id)
-    const surrounding = blocks.slice(Math.max(0, idx-3), Math.min(blocks.length, idx+4)).map(b => b.text).join('\n')
+    // Gather surrounding context from all blocks
+    const surrounding = blocksRef.current.map(b => b.text).join('\n')
+    // Find which block the anchor node is in
+    const sel     = window.getSelection()
+    let blockId   = null
+    if (sel?.anchorNode) {
+      for (const [id, el] of Object.entries(refs.current)) {
+        if (el && el.contains(sel.anchorNode)) { blockId = id; break }
+      }
+    }
     setCtxMenu({
       x: e.clientX - (scrollRect?.left || 0),
       y: e.clientY - (scrollRect?.top  || 0) + (scrollRef.current?.scrollTop || 0),
-      blockId: block.id,
-      selectedText: selection,
+      blockId,
+      selectedText,
       surroundingContext: surrounding,
     })
     setPtCard(null)
@@ -250,14 +329,14 @@ export default function WritingEditor({ project, script, characters, relationshi
 
   async function runPressureTest() {
     if (!contextMenu) return
-    const block = blocks.find(b => b.id === contextMenu.blockId)
-    if (!block) return
-    const idx       = blocks.findIndex(b => b.id === contextMenu.blockId)
-    const preceding = blocks.slice(Math.max(0, idx-5), idx)
-    const charBlock = [...preceding].reverse().find(b => b.type === 'character')
-    const character = characters.find(c => charBlock && c.name.toUpperCase() === charBlock.text.trim()) || characters[0]
+    // Find character context
+    const current    = blocksRef.current
+    const blockIdx   = contextMenu.blockId ? current.findIndex(b => b.id === contextMenu.blockId) : 0
+    const preceding  = current.slice(Math.max(0, blockIdx-5), blockIdx)
+    const charBlock  = [...preceding].reverse().find(b => b.type === 'character')
+    const character  = characters.find(c => charBlock && c.name.toUpperCase() === charBlock.text.trim()) || characters[0]
     if (!character) { alert('Add characters to your story bible first.'); return }
-    const sceneChars = detectCharsInScene(blocks.slice(Math.max(0, idx-8), idx+2), characters).filter(c => c.id !== character.id)
+    const sceneChars = detectCharsInScene(current.slice(Math.max(0, blockIdx-8), blockIdx+2), characters).filter(c => c.id !== character.id)
     const otherChar  = sceneChars[0] || null
     const rel        = otherChar ? relationships.find(r =>
       (r.character_a === character.id && r.character_b === otherChar.id) ||
@@ -266,7 +345,11 @@ export default function WritingEditor({ project, script, characters, relationshi
     setCtxMenu(null)
     setPtCard({ loading:true, verdict:null, summary:'', notes:[], character, otherChar, rel })
     try {
-      const { systemPrompt, prompt } = buildPressureTestPrompt({ character, selectedText:contextMenu.selectedText, surroundingContext:contextMenu.surroundingContext, relationship:rel, otherCharacter:otherChar })
+      const { systemPrompt, prompt } = buildPressureTestPrompt({
+        character, selectedText: contextMenu.selectedText,
+        surroundingContext: contextMenu.surroundingContext,
+        relationship: rel, otherCharacter: otherChar,
+      })
       const raw    = await callAI({ systemPrompt, prompt })
       const result = JSON.parse(raw.replace(/```json|```/g, '').trim())
       setPtCard({ loading:false, ...result, character, otherChar, rel })
@@ -282,11 +365,11 @@ export default function WritingEditor({ project, script, characters, relationshi
     setWhisper(null); setWhyOpen(false)
   }
 
-  const focusedBlock  = blocks.find(b => b.id === focusId)
-  const sceneChars    = detectCharsInScene(blocks, characters)
-  const words         = blocks.reduce((n, b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
-  const pages         = paginateBlocks(blocks)
-  const showFirstReadBanner = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
+  const focusedBlock = blocks.find(b => b.id === focusId)
+  const sceneChars   = detectCharsInScene(blocks, characters)
+  const words        = blocks.reduce((n,b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
+  const pages        = paginateBlocks(blocks)
+  const showBanner   = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
 
   return (
     <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
@@ -305,10 +388,8 @@ export default function WritingEditor({ project, script, characters, relationshi
       {/* ── Editor column ── */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-        {/* ── Toolbar ── */}
+        {/* Toolbar */}
         <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 16px', borderBottom:'1px solid var(--edge)', background:'var(--s1)', flexShrink:0 }}>
-
-          {/* Script title */}
           <input value={title}
             onChange={e => { setTitle(e.target.value); scheduleAutoSave(blocks, e.target.value) }}
             style={{ background:'none', border:'none', fontSize:13, fontWeight:500, color:'var(--text)', width:180, padding:'2px 4px', borderRadius:4, fontFamily:'var(--font-ui)' }}
@@ -316,29 +397,25 @@ export default function WritingEditor({ project, script, characters, relationshi
             onBlur={e => e.target.style.background='none'}
             placeholder="Script title…" spellCheck={false}
           />
-
           <div style={{ width:1, height:16, background:'var(--edge)' }} />
 
           {/* Block type dropdown */}
           <div style={{ position:'relative' }}>
             <button
               onClick={() => setDropdown(v => !v)}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:5, fontSize:12, fontWeight:500, background:dropdownOpen?'var(--s3)':'var(--s2)', color:'var(--text)', border:'1px solid var(--edge)', cursor:'pointer', fontFamily:'var(--font-ui)', minWidth:140 }}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:5, fontSize:12, fontWeight:500, background:dropdownOpen?'var(--s3)':'var(--s2)', color:'var(--text)', border:'1px solid var(--edge)', cursor:'pointer', fontFamily:'var(--font-ui)', minWidth:150 }}
             >
               <span style={{ flex:1, textAlign:'left' }}>{focusedBlock ? BLOCKS[focusedBlock.type]?.label : 'Block type'}</span>
               <span style={{ fontSize:9, color:'var(--dim)' }}>▾</span>
             </button>
-
             {dropdownOpen && (
-              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:80, background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:8, overflow:'hidden', minWidth:220, boxShadow:'0 8px 32px rgba(0,0,0,.6)' }}>
-                <div style={{ padding:'6px 12px 4px', fontSize:9, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.08em', borderBottom:'1px solid var(--edge)', fontWeight:500 }}>
-                  Tab to switch
-                </div>
+              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:80, background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:8, overflow:'hidden', minWidth:230, boxShadow:'0 8px 32px rgba(0,0,0,.6)' }}>
+                <div style={{ padding:'6px 12px 4px', fontSize:9, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.08em', borderBottom:'1px solid var(--edge)', fontWeight:500 }}>Tab to cycle · Ctrl+1–8</div>
                 {Object.entries(BLOCKS).map(([type, { label, shortcut }]) => {
                   const active = focusedBlock?.type === type
                   return (
                     <button key={type}
-                      onClick={() => focusId && changeType(focusId, type)}
+                      onMouseDown={e => { e.preventDefault(); if (focusId) changeType(focusId, type) }}
                       style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'8px 12px', fontSize:12, cursor:'pointer', background:active?'var(--gold-bg)':'transparent', color:active?'var(--gold)':'var(--text)', border:'none', fontFamily:'var(--font-ui)', textAlign:'left' }}
                     >
                       <span>{label}</span>
@@ -350,10 +427,9 @@ export default function WritingEditor({ project, script, characters, relationshi
             )}
           </div>
 
-          {/* Save status + stats */}
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
             {saving
-              ? <span style={{ fontSize:11, color:'var(--gold)', display:'flex', alignItems:'center', gap:5 }}><Spinner /> Saving…</span>
+              ? <span style={{ fontSize:11, color:'var(--gold)', display:'flex', alignItems:'center', gap:5 }}><Spinner/> Saving…</span>
               : saveMsg === 'saved'
                 ? <span style={{ fontSize:11, color:'var(--gold)', fontWeight:300 }}>✓ Saved</span>
                 : <span style={{ fontSize:11, color:'var(--dim)', fontWeight:300 }}>Auto-saves</span>
@@ -367,16 +443,16 @@ export default function WritingEditor({ project, script, characters, relationshi
           </div>
         </div>
 
-        {/* ── Hint bar ── */}
+        {/* Hint bar */}
         <div style={{ padding:'3px 16px', background:'var(--bg)', borderBottom:'1px solid var(--edge)', flexShrink:0, fontSize:10, color:'var(--dim)', fontWeight:300 }}>
           <b style={{ color:'var(--muted)', fontWeight:500 }}>Ctrl+1–8</b> block type &nbsp;·&nbsp;
           <b style={{ color:'var(--muted)', fontWeight:500 }}>Tab</b> cycle &nbsp;·&nbsp;
           <b style={{ color:'var(--muted)', fontWeight:500 }}>Enter</b> new block &nbsp;·&nbsp;
-          <b style={{ color:'var(--muted)', fontWeight:500 }}>Highlight + right-click</b> Pressure Test
+          <b style={{ color:'var(--muted)', fontWeight:500 }}>Select + right-click</b> Pressure Test
         </div>
 
-        {/* ── First Read banner ── */}
-        {showFirstReadBanner && (
+        {/* First Read banner */}
+        {showBanner && (
           <div style={{ padding:'9px 16px', background:'rgba(200,169,106,.06)', borderBottom:'1px solid rgba(200,169,106,.15)', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
             <div style={{ display:'flex', gap:3 }}><Dot/><Dot/><Dot/></div>
             <span style={{ fontSize:12, color:'var(--muted)', fontWeight:300, flex:1 }}>Anchor can read this script and build your story bible automatically</span>
@@ -385,79 +461,63 @@ export default function WritingEditor({ project, script, characters, relationshi
           </div>
         )}
 
-        {/* ── Script scroll area ── */}
+        {/* Script scroll area */}
         <div
           ref={scrollRef}
-          style={{ flex:1, overflow:'auto', padding:'32px 24px 80px', background:'#2A2A2A', position:'relative' }}
+          style={{ flex:1, overflow:'auto', padding:'32px 24px 120px', background:'#2A2A2A', position:'relative' }}
           onClick={() => { setCtxMenu(null); setDropdown(false) }}
+          onContextMenu={handleContextMenu}
         >
-          {/* Pages */}
           {pages.map((pageBlocks, pageIndex) => (
-            <div key={pageIndex} style={{ position:'relative', maxWidth:680, margin:'0 auto 0' }}>
-
-              {/* Page number */}
-              <div style={{ textAlign:'right', fontSize:10, color:'#888', fontFamily:'var(--font-script)', marginBottom:4, paddingRight:4 }}>
+            <div key={pageIndex} style={{ maxWidth:680, margin:'0 auto' }}>
+              <div style={{ textAlign:'right', fontSize:10, color:'#888', fontFamily:"'Courier Prime', monospace", marginBottom:4, paddingRight:4 }}>
                 {pageIndex + 1}.
               </div>
-
-              {/* Page card */}
-              <div
-                style={{
-                  background:'#F8F8F6',
-                  borderRadius:2,
-                  padding: project.format === 'screenplay' ? '52px 72px 60px' : '48px 60px 60px',
-                  minHeight:880,
-                  boxShadow:'0 4px 24px rgba(0,0,0,.5)',
-                  position:'relative',
-                  marginBottom:32,
-                }}
-              >
+              <div style={{
+                background:'#F8F8F6', borderRadius:2,
+                padding: project.format === 'screenplay' ? '52px 72px 60px' : '48px 60px 60px',
+                minHeight:880, boxShadow:'0 4px 24px rgba(0,0,0,.5)',
+                position:'relative', marginBottom:32,
+              }}>
                 {pageBlocks.map(block => (
-                  <textarea
+                  <div
                     key={block.id}
                     ref={el => refs.current[block.id] = el}
-                    value={block.text}
-                    placeholder={BLOCKS[block.type]?.hint}
-                    onChange={e => changeText(block.id, e.target.value)}
+                    contentEditable
+                    suppressContentEditableWarning
+                    data-block-id={block.id}
+                    data-placeholder={BLOCKS[block.type]?.hint}
+                    onInput={e => handleInput(e, block)}
                     onKeyDown={e => handleKeyDown(e, block)}
                     onFocus={() => { setFocusId(block.id); setDropdown(false) }}
                     onBlur={() => setFocusId(id => id === block.id ? null : id)}
-                    onContextMenu={e => handleContextMenu(e, block)}
-                    rows={1}
-                    spellCheck
-                    autoCapitalize={BLOCKS[block.type]?.upper ? 'characters' : 'sentences'}
-                    onInput={e => { e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px' }}
                     style={{
-                      ...getBlockStyle(block.type),
+                      ...getBlockCSS(block.type),
                       borderLeft: focusId===block.id ? '2px solid rgba(200,169,106,.45)' : '2px solid transparent',
-                      paddingLeft:4,
+                      paddingLeft:'4px',
                       background: focusId===block.id ? 'rgba(200,169,106,.03)' : 'transparent',
                       transition:'background .1s',
+                      position:'relative',
                     }}
                   />
                 ))}
-
-                {/* Context menu — positioned inside current page */}
-                {contextMenu && pageBlocks.find(b => b.id === contextMenu.blockId) && (
-                  <div onClick={e => e.stopPropagation()} style={{
-                    position:'absolute', left:contextMenu.x, top:contextMenu.y - (pageIndex * 912), zIndex:60,
-                    background:'rgba(8,8,13,.97)', backdropFilter:'blur(20px)',
-                    border:'1px solid rgba(255,255,255,.08)', borderRadius:8,
-                    padding:5, minWidth:190,
-                    boxShadow:'0 8px 40px rgba(0,0,0,.8)',
-                  }}>
-                    <button onClick={runPressureTest} style={{ display:'flex', alignItems:'center', gap:9, width:'100%', padding:'8px 11px', borderRadius:5, fontSize:12, fontWeight:500, color:'var(--gold)', background:'var(--gold-bg)', border:'1px solid rgba(200,169,106,.18)', cursor:'pointer', fontFamily:'var(--font-ui)' }}>
-                      <span style={{ fontSize:11 }}>⚡</span> Pressure Test
-                    </button>
-                    <div style={{ height:1, background:'var(--edge)', margin:'4px 0' }} />
-                    {['✂ Cut','⎘ Copy','↩ Paste'].map(label => (
-                      <div key={label} style={{ padding:'8px 11px', borderRadius:5, fontSize:12, color:'var(--muted)', cursor:'pointer', fontFamily:'var(--font-ui)' }}>{label}</div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           ))}
+
+          {/* Context menu */}
+          {contextMenu && (
+            <div onClick={e => e.stopPropagation()} style={{
+              position:'absolute', left:Math.min(contextMenu.x, (scrollRef.current?.clientWidth||600)-210), top:contextMenu.y,
+              zIndex:60, background:'rgba(8,8,13,.97)', backdropFilter:'blur(20px)',
+              border:'1px solid rgba(255,255,255,.08)', borderRadius:8,
+              padding:5, minWidth:200, boxShadow:'0 8px 40px rgba(0,0,0,.8)',
+            }}>
+              <button onClick={runPressureTest} style={{ display:'flex', alignItems:'center', gap:9, width:'100%', padding:'8px 11px', borderRadius:5, fontSize:12, fontWeight:500, color:'var(--gold)', background:'var(--gold-bg)', border:'1px solid rgba(200,169,106,.18)', cursor:'pointer', fontFamily:'var(--font-ui)' }}>
+                <span style={{ fontSize:11 }}>⚡</span> Pressure Test
+              </button>
+            </div>
+          )}
 
           {/* Pressure test card */}
           {ptCard && (
@@ -509,7 +569,7 @@ export default function WritingEditor({ project, script, characters, relationshi
             {sceneChars.length > 0 && (
               <div style={{ marginBottom:14 }}>
                 <div style={{ fontSize:9, fontWeight:500, color:'var(--gold)', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:8 }}>Detected ({sceneChars.length})</div>
-                {sceneChars.map(c => <XRayChar key={c.id} char={c} relationships={relationships} characters={characters} expanded={!!xrayExpanded[c.id]} onToggle={() => setExpanded(x => ({...x,[c.id]:!x[c.id]}))} />)}
+                {sceneChars.map(c => <XRayChar key={c.id} char={c} relationships={relationships} characters={characters} expanded={!!xrayExpanded[c.id]} onToggle={() => setExpanded(x=>({...x,[c.id]:!x[c.id]}))} />)}
               </div>
             )}
             <div>
@@ -519,7 +579,7 @@ export default function WritingEditor({ project, script, characters, relationshi
                 : characters.map(c => (
                     <XRayChar key={c.id} char={c} relationships={relationships} characters={characters}
                       expanded={!!xrayExpanded[c.id]}
-                      onToggle={() => setExpanded(x => ({...x,[c.id]:!x[c.id]}))}
+                      onToggle={() => setExpanded(x=>({...x,[c.id]:!x[c.id]}))}
                       dimmed={sceneChars.length > 0 && !sceneChars.find(s => s.id === c.id)}
                     />
                   ))
@@ -543,11 +603,49 @@ export default function WritingEditor({ project, script, characters, relationshi
   )
 }
 
+// ── Placeholder CSS injection ──────────────────────────────────
+// Injected once at module level so contentEditable divs show hint text
+if (typeof document !== 'undefined') {
+  const styleId = 'anchor-editor-placeholders'
+  if (!document.getElementById(styleId)) {
+    const s = document.createElement('style')
+    s.id = styleId
+    s.textContent = `
+      [contenteditable][data-placeholder]:empty::before {
+        content: attr(data-placeholder);
+        color: #999;
+        pointer-events: none;
+        font-style: italic;
+      }
+    `
+    document.head.appendChild(s)
+  }
+}
+
+// ── Caret helpers ──────────────────────────────────────────────
+function placeCaretAtEnd(el) {
+  const range = document.createRange()
+  const sel   = window.getSelection()
+  range.selectNodeContents(el)
+  range.collapse(false)
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
+function placeCaretAtStart(el) {
+  const range = document.createRange()
+  const sel   = window.getSelection()
+  range.selectNodeContents(el)
+  range.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
 // ── X-Ray character card ───────────────────────────────────────
 function XRayChar({ char, relationships, characters, expanded, onToggle, dimmed }) {
   const rels = relationships.filter(r => r.character_a === char.id || r.character_b === char.id)
   return (
-    <div style={{ marginBottom:4, opacity:dimmed?.35:1, transition:'opacity .15s' }}>
+    <div style={{ marginBottom:4, opacity:dimmed?0.35:1, transition:'opacity .15s' }}>
       <div onClick={onToggle} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--edge)', cursor:'pointer' }}>
         <div style={{ width:22, height:22, borderRadius:'50%', background:char.color+'18', border:`1px solid ${char.color}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:char.color, fontWeight:500, flexShrink:0 }}>
           {char.name?.charAt(0)}
@@ -557,9 +655,9 @@ function XRayChar({ char, relationships, characters, expanded, onToggle, dimmed 
       </div>
       {expanded && (
         <div style={{ padding:'8px 0 4px 30px', fontSize:11, color:'var(--muted)', lineHeight:1.7, fontWeight:300 }} className="fade-in">
-          {char.goals     && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Wants</b> — {char.goals.slice(0,90)}</div>}
-          {char.fears     && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Fears</b> — {char.fears.slice(0,90)}</div>}
-          {char.voice     && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Voice</b> — {char.voice.slice(0,90)}</div>}
+          {char.goals && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Wants</b> — {char.goals.slice(0,90)}</div>}
+          {char.fears && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Fears</b> — {char.fears.slice(0,90)}</div>}
+          {char.voice && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Voice</b> — {char.voice.slice(0,90)}</div>}
           {rels.length > 0 && (
             <div style={{ marginTop:5 }}>
               {rels.map(r => {
@@ -674,7 +772,6 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
 function Dot() {
   return <span style={{ display:'inline-block', width:5, height:5, borderRadius:'50%', background:'var(--gold)', opacity:0.5, animation:'pulse 1.2s ease-in-out infinite' }}/>
 }
-
 function Spinner() {
   return <span style={{ display:'inline-block', width:11, height:11, borderRadius:'50%', border:'1.5px solid var(--edge)', borderTopColor:'var(--gold)', animation:'spin .7s linear infinite' }}/>
 }
