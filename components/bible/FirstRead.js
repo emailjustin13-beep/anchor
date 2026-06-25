@@ -8,10 +8,8 @@ const CHAR_COLORS = ['#C8A96A','#58A6FF','#3FB950','#DB61A2','#FF7B72','#D2A8FF'
 
 function buildFirstReadPrompt(scriptText, format) {
   return {
-    system: `You are Anchor — a story bible reader. You read scripts and extract what is already there. You never invent. You never suggest what should happen. You only surface what the writer has already written. Respond only in valid JSON, no markdown, no preamble.`,
-    messages: [{
-      role: 'user',
-      content: `Read this ${format || 'screenplay'} and extract every named character and their relationships.
+    systemPrompt: `You are Anchor — a story bible reader. You read scripts and extract what is already there. You never invent. You never suggest what should happen. You only surface what the writer has already written. Respond only in valid JSON, no markdown, no preamble.`,
+    prompt: `Read this ${format || 'screenplay'} and extract every named character and their relationships.
 
 SCRIPT:
 ${scriptText.slice(0, 8000)}
@@ -41,7 +39,6 @@ Return a JSON object with exactly this shape:
 }
 
 Only include named characters who speak or are spoken about significantly. Only include relationships that are clearly established in the script. Tension is 0-100 based on conflict observed. Return only valid JSON.`
-    }]
   }
 }
 
