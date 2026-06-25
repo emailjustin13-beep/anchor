@@ -366,10 +366,11 @@ export default function WritingEditor({ project, script, characters, relationshi
   }
 
   const focusedBlock = blocks.find(b => b.id === focusId)
-  const sceneChars   = detectCharsInScene(blocks, characters)
-  const words        = blocks.reduce((n,b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
   const pages        = paginateBlocks(blocks)
+  const words        = blocks.reduce((n,b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
   const showBanner   = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
+  const activePage   = pages.find(p => p.some(b => b.id === focusId)) || pages[0] || []
+  const sceneChars   = detectCharsInScene(activePage, characters)
 
   return (
     <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
