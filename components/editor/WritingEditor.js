@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { callAI, buildPressureTestPrompt, buildRelationshipScanPrompt } from '../../lib/ai'
+import FirstRead from '../bible/FirstRead'
 
 // ── Block types ────────────────────────────────────────────────
 const BLOCKS = {
@@ -58,16 +59,20 @@ export default function WritingEditor({ project, script, characters, relationshi
   const [saving, setSaving]         = useState(false)
   const [saveMsg, setSaveMsg]       = useState(null)
   const [xrayOpen, setXrayOpen]     = useState(true)
-  const [xrayExpanded, setExpanded] = useState({}) // charId → bool
+  const [xrayExpanded, setExpanded] = useState({})
 
   // Pressure test
-  const [ptCard, setPtCard]         = useState(null) // { loading, verdict, summary, notes, position }
-  const [contextMenu, setCtxMenu]   = useState(null) // { x, y, blockId, selectedText, surroundingBlocks }
+  const [ptCard, setPtCard]         = useState(null)
+  const [contextMenu, setCtxMenu]   = useState(null)
 
   // Living bible
-  const [whisper, setWhisper]       = useState(null) // { relId|null, charAName, charBName, proposedType, proposedTension, reasoning, summary }
+  const [whisper, setWhisper]       = useState(null)
   const [whyOpen, setWhyOpen]       = useState(false)
   const [aiReading, setAiReading]   = useState(false)
+
+  // First Read
+  const [showFirstRead, setShowFirstRead]         = useState(false)
+  const [firstReadDismissed, setFirstReadDismissed] = useState(false)
 
   const refs        = useRef({})
   const saveTimer   = useRef(null)
@@ -76,6 +81,13 @@ export default function WritingEditor({ project, script, characters, relationshi
 
   useEffect(() => {
     if (script) { setBlocks(deserialize(script.content)); setTitle(script.title || project.title) }
+  }, [script?.id])
+
+  // Auto-trigger First Read banner when script has content but no characters yet
+  useEffect(() => {
+    if (script?.content && characters.length === 0 && !firstReadDismissed) {
+      setShowFirstRead(false) // show banner, not overlay
+    }
   }, [script?.id])
 
   // Auto-save
@@ -96,8 +108,7 @@ export default function WritingEditor({ project, script, characters, relationshi
   }, [characters, relationships])
 
   async function runLivingScan(currentBlocks) {
-    const apiKey = typeof window !== 'undefined' ? sessionStorage.getItem('anchor_api_key') : null
-    if (!apiKey || characters.length < 2) return
+    if (characters.length < 2) return
     setAiReading(true)
     try {
       const recentText = currentBlocks.slice(-12).map(b => b.text).filter(Boolean).join('\n')
@@ -123,7 +134,7 @@ export default function WritingEditor({ project, script, characters, relationshi
           summary: result.summary,
         })
       }
-    } catch { /* silent — scan failures don't interrupt writing */ }
+    } catch { /* silent */ }
     finally { setAiReading(false) }
   }
 
@@ -166,11 +177,9 @@ export default function WritingEditor({ project, script, characters, relationshi
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); insertAfter(block.id, smartNext(block.type)) }
     if (e.key === 'Backspace' && block.text === '') { e.preventDefault(); deleteBlock(block.id) }
     if (e.key === 'Tab') { e.preventDefault(); changeType(block.id, TAB_CYCLE[(TAB_CYCLE.indexOf(block.type)+1) % TAB_CYCLE.length]) }
-    // Hide context menu on any key
     if (contextMenu) setCtxMenu(null)
   }
 
-  // Right-click handler on the page
   function handleContextMenu(e, block) {
     const selection = window.getSelection()?.toString().trim()
     if (!selection) return
@@ -193,8 +202,7 @@ export default function WritingEditor({ project, script, characters, relationshi
     const block = blocks.find(b => b.id === contextMenu.blockId)
     if (!block) return
 
-    // Find the character most likely being tested (look for character name in preceding blocks)
-    const idx     = blocks.findIndex(b => b.id === contextMenu.blockId)
+    const idx       = blocks.findIndex(b => b.id === contextMenu.blockId)
     const preceding = blocks.slice(Math.max(0, idx-5), idx)
     const charBlock = [...preceding].reverse().find(b => b.type === 'character')
     const character = characters.find(c => charBlock && c.name.toUpperCase() === charBlock.text.trim())
@@ -202,7 +210,6 @@ export default function WritingEditor({ project, script, characters, relationshi
 
     if (!character) { alert('Add characters to your story bible first.'); return }
 
-    // Find relationship with other character in scene
     const sceneChars = detectCharsInScene(blocks.slice(Math.max(0, idx-8), idx+2), characters).filter(c => c.id !== character.id)
     const otherChar  = sceneChars[0] || null
     const rel        = otherChar ? relationships.find(r =>
@@ -229,7 +236,6 @@ export default function WritingEditor({ project, script, characters, relationshi
     }
   }
 
-  // Confirm living bible update
   async function confirmWhisperUpdate() {
     if (!whisper) return
     const patch = { type: whisper.proposedType, tension: whisper.proposedTension, ai_reasoning: whisper.reasoning.join('\n') }
@@ -239,13 +245,26 @@ export default function WritingEditor({ project, script, characters, relationshi
     setWhisper(null); setWhyOpen(false)
   }
 
-  const sceneChars = detectCharsInScene(blocks, characters)
+  const sceneChars   = detectCharsInScene(blocks, characters)
   const focusedBlock = blocks.find(b => b.id === focusId)
-  const words = blocks.reduce((n, b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
-  const pages = Math.max(1, Math.ceil(words / 250))
+  const words        = blocks.reduce((n, b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
+  const pages        = Math.max(1, Math.ceil(words / 250))
+
+  const showFirstReadBanner = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+
+      {/* ── First Read overlay ── */}
+      {showFirstRead && script?.content && (
+        <FirstRead
+          scriptText={script.content.replace(/\[\w+\]/g, '')}
+          format={project.format}
+          projectId={project.id}
+          onComplete={() => { setShowFirstRead(false); window.location.reload() }}
+          onCancel={() => { setShowFirstRead(false); setFirstReadDismissed(true) }}
+        />
+      )}
 
       {/* ── Editor ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -260,7 +279,6 @@ export default function WritingEditor({ project, script, characters, relationshi
 
           <div style={{ width: 1, height: 16, background: 'var(--edge)' }} />
 
-          {/* Block type buttons */}
           {focusId && Object.entries(BLOCKS).map(([type, { label }]) => {
             const active = focusedBlock?.type === type
             return (
@@ -292,6 +310,29 @@ export default function WritingEditor({ project, script, characters, relationshi
           <b style={{ color: 'var(--muted)', fontWeight: 500 }}>Enter</b> new block &nbsp;·&nbsp;
           <b style={{ color: 'var(--muted)', fontWeight: 500 }}>Highlight + right-click</b> to Pressure Test
         </div>
+
+        {/* First Read banner */}
+        {showFirstReadBanner && (
+          <div style={{ padding: '10px 18px', background: 'rgba(200,169,106,.06)', borderBottom: '1px solid rgba(200,169,106,.15)', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 3 }}>
+              <Dot /><Dot /><Dot />
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 300, flex: 1 }}>
+              Anchor can read this script and build your story bible automatically
+            </span>
+            <button
+              className="btn btn-gold"
+              onClick={() => setShowFirstRead(true)}
+              style={{ fontSize: 11, padding: '4px 12px' }}
+            >
+              ✦ First Read
+            </button>
+            <button
+              onClick={() => setFirstReadDismissed(true)}
+              style={{ fontSize: 11, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}
+            >✕</button>
+          </div>
+        )}
 
         {/* Page */}
         <div style={{ flex: 1, overflow: 'auto', padding: '24px 18px 80px', background: 'var(--bg)', position: 'relative' }} onClick={() => { setCtxMenu(null) }}>
@@ -347,7 +388,7 @@ export default function WritingEditor({ project, script, characters, relationshi
             )}
           </div>
 
-          {/* Pressure test card — floats centered below selected area */}
+          {/* Pressure test card */}
           {ptCard && (
             <div style={{ position: 'sticky', bottom: 80, zIndex: 55, maxWidth: 360, margin: '16px auto 0', pointerEvents: 'auto' }}>
               <PressureTestCard card={ptCard} onClose={() => setPtCard(null)} />
@@ -402,7 +443,6 @@ export default function WritingEditor({ project, script, characters, relationshi
 
           <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
 
-            {/* Detected */}
             {sceneChars.length > 0 && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 9, fontWeight: 500, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>Detected ({sceneChars.length})</div>
@@ -410,7 +450,6 @@ export default function WritingEditor({ project, script, characters, relationshi
               </div>
             )}
 
-            {/* All characters */}
             <div>
               <div style={{ fontSize: 9, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>All characters</div>
               {characters.length === 0
@@ -425,7 +464,6 @@ export default function WritingEditor({ project, script, characters, relationshi
               }
             </div>
 
-            {/* Locations */}
             {locations.length > 0 && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 9, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: 8 }}>Locations</div>
@@ -502,7 +540,6 @@ function PressureTestCard({ card, onClose }) {
           <button onClick={onClose} style={{ fontSize: 10, color: 'var(--dim)', cursor: 'pointer', background: 'none', border: 'none', lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* Verdict */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderRadius: 5, marginBottom: 12, background: v.bg, border: `1px solid ${v.border}` }}>
           <span style={{ fontSize: 16 }}>{v.icon}</span>
           <div>
@@ -511,7 +548,6 @@ function PressureTestCard({ card, onClose }) {
           </div>
         </div>
 
-        {/* Relationship context */}
         {card.rel && card.otherChar && (
           <>
             <div className="lore-label" style={{ marginBottom: 6 }}>Relationship context</div>
@@ -526,7 +562,6 @@ function PressureTestCard({ card, onClose }) {
           </>
         )}
 
-        {/* Notes */}
         {card.notes?.length > 0 && (
           <>
             <div className="lore-divider" />
@@ -581,6 +616,10 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
       </div>
     </div>
   )
+}
+
+function Dot() {
+  return <span style={{ display:'inline-block', width:5, height:5, borderRadius:'50%', background:'var(--gold)', opacity:0.5, animation:'pulse 1.2s ease-in-out infinite' }} />
 }
 
 function Spinner() {
