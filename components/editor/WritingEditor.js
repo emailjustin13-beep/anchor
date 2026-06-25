@@ -184,7 +184,10 @@ export default function WritingEditor({ project, script, characters, relationshi
       const { systemPrompt, prompt } = buildRelationshipScanPrompt({ scriptChunk: recentText, characters, relationships })
       const raw = await callAI({ systemPrompt, prompt })
       console.log('Living Bible raw:', raw.slice(0, 200))
-      const jsonMatch = raw.match(/\{[\s\S]*\}/); if (!jsonMatch) return; const result = JSON.parse(jsonMatch[0])
+      const cleaned = raw.replace(/```json|```/g, '').trim()
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return
+      const result = JSON.parse(jsonMatch[0])
       if (result.shift_detected) {
         const charA = characters.find(c => c.name === result.character_a)
         const charB = characters.find(c => c.name === result.character_b)
