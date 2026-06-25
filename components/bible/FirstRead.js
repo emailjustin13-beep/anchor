@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { callAI } from '../../lib/ai'
 
 const REL_TYPES = ['ally','rival','romantic','family','mentor','enemy','complicated','stranger']
@@ -50,7 +50,7 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
   const [saving, setSaving]           = useState(false)
 
   // Run on mount
-  useState(() => { runRead() }, [])
+  useEffect(() => { runRead() }, [])
 
   async function runRead() {
     setStep('reading')
@@ -77,7 +77,7 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
       setRelationships(rels)
       setStep('characters')
     } catch(e) {
-      setError('Anchor couldn\'t read the script. Make sure it has named characters and dialogue.')
+      setError('Error: ' + e.message)
     }
   }
 
