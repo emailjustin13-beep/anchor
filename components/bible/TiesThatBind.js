@@ -5,19 +5,22 @@ const REL_COLORS = { ally: '#3FB950', rival: '#F85149', romantic: '#DB61A2', fam
 const REL_TYPES  = Object.keys(REL_COLORS)
 const NODE_R     = 30
 
+const ACT_LABELS = ['Act 1', 'Act 2', 'Act 3', 'Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'Chapter 5', 'Opening', 'Midpoint', 'Climax', 'Resolution']
+
 export default function TiesThatBind({ characters, relationships, onCreateRelationship, onUpdateRelationship, onDeleteRelationship }) {
   const svgRef    = useRef(null)
   const [size, setSize] = useState({ w: 700, h: 500 })
   const [positions, setPositions] = useState({})
   const [dragging, setDragging]   = useState(null)
-  const [selected, setSelected]   = useState(null) // { type: 'node'|'edge', id }
+  const [selected, setSelected]   = useState(null)
   const [connecting, setConnecting] = useState(null)
-  const [loreNode, setLoreNode]   = useState(null) // character
-  const [loreRel, setLoreRel]     = useState(null) // relationship + form
+  const [loreNode, setLoreNode]   = useState(null)
+  const [loreRel, setLoreRel]     = useState(null)
   const [relForm, setRelForm]     = useState({})
   const [saving, setSaving]       = useState(false)
+  const [arcForm, setArcForm]     = useState({ act: 'Act 1', note: '' })
+  const [addingArc, setAddingArc] = useState(false)
 
-  // Measure container
   useEffect(() => {
     const el = svgRef.current?.parentElement
     if (!el) return
@@ -29,7 +32,6 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
     return () => obs.disconnect()
   }, [])
 
-  // Init positions
   useEffect(() => {
     setPositions(prev => {
       const next = { ...prev }
@@ -45,7 +47,6 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
     })
   }, [characters, size])
 
-  // Drag
   const onNodeMouseDown = useCallback((e, id) => {
     if (connecting) return
     e.stopPropagation()
@@ -82,6 +83,7 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
   function openRelLore(rel) {
     setLoreRel(rel)
     setRelForm({ type: rel.type, status: rel.status, history: rel.history, notes: rel.notes, tension: rel.tension })
+    setAddingArc(false)
   }
 
   async function saveRel() {
@@ -92,14 +94,39 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
     setLoreRel(r => ({ ...r, ...relForm }))
   }
 
+  async function addArcEntry() {
+    if (!loreRel || !arcForm.note.trim()) return
+    setSaving(true)
+    const currentArc = Array.isArray(loreRel.arc) ? loreRel.arc : []
+    const newEntry = {
+      act: arcForm.act,
+      type: relForm.type || loreRel.type,
+      tension: relForm.tension ?? loreRel.tension ?? 0,
+      note: arcForm.note.trim(),
+      timestamp: new Date().toISOString(),
+    }
+    const updatedArc = [...currentArc, newEntry]
+    await onUpdateRelationship(loreRel.id, { arc: updatedArc })
+    setLoreRel(r => ({ ...r, arc: updatedArc }))
+    setArcForm({ act: 'Act 1', note: '' })
+    setAddingArc(false)
+    setSaving(false)
+  }
+
+  async function removeArcEntry(index) {
+    if (!loreRel) return
+    const currentArc = Array.isArray(loreRel.arc) ? loreRel.arc : []
+    const updatedArc = currentArc.filter((_, i) => i !== index)
+    await onUpdateRelationship(loreRel.id, { arc: updatedArc })
+    setLoreRel(r => ({ ...r, arc: updatedArc }))
+  }
+
   function clearAll() { setSelected(null); setLoreNode(null); setLoreRel(null); setConnecting(null) }
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', position: 'relative' }} onClick={clearAll}>
 
-      {/* Map */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--bg)' }}>
-        {/* Ambient glow */}
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 60% at 50% 50%, rgba(200,169,106,.03) 0%, transparent 65%)', pointerEvents: 'none' }} />
 
         {/* Top bar */}
@@ -147,10 +174,11 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
               const posA = positions[rel.character_a]
               const posB = positions[rel.character_b]
               if (!posA || !posB) return null
-              const color   = REL_COLORS[rel.type] || REL_COLORS.stranger
-              const isSel   = selected?.type === 'edge' && selected.id === rel.id
-              const mx      = (posA.x + posB.x) / 2
-              const my      = (posA.y + posB.y) / 2
+              const color = REL_COLORS[rel.type] || REL_COLORS.stranger
+              const isSel = selected?.type === 'edge' && selected.id === rel.id
+              const mx    = (posA.x + posB.x) / 2
+              const my    = (posA.y + posB.y) / 2
+              const arc   = Array.isArray(rel.arc) ? rel.arc : []
 
               return (
                 <g key={rel.id} onClick={e => handleEdgeClick(e, rel)} style={{ cursor: 'pointer' }}>
@@ -160,6 +188,10 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
                   {isSel && <circle cx={mx} cy={my} r={4} fill={color} opacity={.9} />}
                   {isSel && <circle cx={mx} cy={my} r={10} fill={color} opacity={.1} />}
                   {rel.tension > 60 && !isSel && <circle cx={mx} cy={my} r={rel.tension / 22 + 2} fill={color} opacity={.15} />}
+                  {/* Arc count badge */}
+                  {arc.length > 0 && !isSel && (
+                    <text x={mx + 8} y={my - 8} fontSize={8} fill={color} fontFamily="Inter,sans-serif" fontWeight="500" opacity={.7}>{arc.length}</text>
+                  )}
                   {isSel && <text x={mx} y={my - 12} textAnchor="middle" fontSize={9} fill={color} fontFamily="Inter,sans-serif" fontWeight="400" opacity={.9} style={{ pointerEvents: 'none' }}>{rel.type}</text>}
                 </g>
               )
@@ -167,11 +199,10 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
 
             {/* Nodes */}
             {characters.map(c => {
-              const pos      = positions[c.id]
+              const pos    = positions[c.id]
               if (!pos) return null
-              const isSel    = selected?.type === 'node' && selected.id === c.id
-              const isConn   = connecting === c.id
-              const nodeRels = relationships.filter(r => r.character_a === c.id || r.character_b === c.id)
+              const isSel  = selected?.type === 'node' && selected.id === c.id
+              const isConn = connecting === c.id
 
               return (
                 <g key={c.id} transform={`translate(${pos.x},${pos.y})`}
@@ -193,7 +224,7 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
           </svg>
         )}
 
-        {/* Node lore card — floats near the node */}
+        {/* Node lore card */}
         {loreNode && (() => {
           const pos = positions[loreNode.id]
           const nodeRels = relationships.filter(r => r.character_a === loreNode.id || r.character_b === loreNode.id)
@@ -242,20 +273,21 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
           )
         })()}
 
-        {/* Relationship lore card — floats at midpoint */}
+        {/* Relationship lore card */}
         {loreRel && (() => {
-          const posA = positions[loreRel.character_a]
-          const posB = positions[loreRel.character_b]
+          const posA  = positions[loreRel.character_a]
+          const posB  = positions[loreRel.character_b]
           const charA = characters.find(c => c.id === loreRel.character_a)
           const charB = characters.find(c => c.id === loreRel.character_b)
-          const color  = REL_COLORS[loreRel.type] || REL_COLORS.stranger
-          const mx     = ((posA?.x || 0) + (posB?.x || 0)) / 2
-          const my     = ((posA?.y || 0) + (posB?.y || 0)) / 2
-          const cardX  = Math.max(10, Math.min(mx - 140, size.w - 295))
-          const cardY  = Math.max(10, my - 160)
+          const color = REL_COLORS[loreRel.type] || REL_COLORS.stranger
+          const mx    = ((posA?.x || 0) + (posB?.x || 0)) / 2
+          const my    = ((posA?.y || 0) + (posB?.y || 0)) / 2
+          const cardX = Math.max(10, Math.min(mx - 150, size.w - 310))
+          const cardY = Math.max(10, my - 180)
+          const arc   = Array.isArray(loreRel.arc) ? loreRel.arc : []
 
           return (
-            <div style={{ position: 'absolute', left: cardX, top: cardY, width: 280, zIndex: 20 }} onClick={e => e.stopPropagation()}>
+            <div style={{ position: 'absolute', left: cardX, top: cardY, width: 295, zIndex: 20, maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
               <div className="lore-card">
                 <div className="lore-bar" style={{ background: `linear-gradient(90deg, ${charA?.color || color}, ${color}, ${charB?.color || color})` }} />
                 <div className="lore-inner">
@@ -320,6 +352,69 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
                     <div style={{ marginTop: 10, padding: '8px 10px', background: 'rgba(200,169,106,.05)', border: '1px solid rgba(200,169,106,.12)', borderRadius: 5 }}>
                       <div style={{ fontSize: 9, color: 'var(--gold)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4 }}>Why Anchor updated this</div>
                       <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.6, fontWeight: 300 }}>{loreRel.ai_reasoning.slice(0, 200)}{loreRel.ai_reasoning.length > 200 ? '…' : ''}</div>
+                    </div>
+                  )}
+
+                  {/* ── Relationship Arc Timeline ── */}
+                  <div className="lore-divider" style={{ marginTop: 14 }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ fontSize: 9, color: 'var(--gold)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.1em' }}>Relationship Arc</div>
+                    <button onClick={() => setAddingArc(v => !v)} style={{ fontSize: 10, color: 'var(--gold)', background: 'none', border: '1px solid rgba(200,169,106,.25)', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>
+                      {addingArc ? 'Cancel' : '+ Add'}
+                    </button>
+                  </div>
+
+                  {/* Add arc entry form */}
+                  {addingArc && (
+                    <div style={{ marginBottom: 12, padding: '10px 12px', background: 'rgba(200,169,106,.04)', border: '1px solid rgba(200,169,106,.15)', borderRadius: 6 }} className="fade-in">
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                        <select value={arcForm.act} onChange={e => setArcForm(f => ({ ...f, act: e.target.value }))} style={{ fontSize: 11, padding: '4px 7px', borderRadius: 4, flex: 1 }}>
+                          {ACT_LABELS.map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </div>
+                      <textarea
+                        value={arcForm.note}
+                        onChange={e => setArcForm(f => ({ ...f, note: e.target.value }))}
+                        placeholder="What happened to their relationship at this point…"
+                        rows={2}
+                        style={{ fontSize: 11, padding: '6px 8px', borderRadius: 4, marginBottom: 8 }}
+                      />
+                      <button className="btn btn-gold btn-xs" onClick={addArcEntry} disabled={saving || !arcForm.note.trim()} style={{ width: '100%', justifyContent: 'center' }}>
+                        {saving ? 'Saving…' : 'Log this moment'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Arc timeline */}
+                  {arc.length === 0 ? (
+                    <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic', fontWeight: 300, paddingBottom: 4 }}>
+                      No arc logged yet. Anchor will add entries automatically when you confirm Living Bible updates, or add them manually above.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {arc.map((entry, i) => {
+                        const entryColor = REL_COLORS[entry.type] || 'var(--muted)'
+                        const isLast = i === arc.length - 1
+                        return (
+                          <div key={i} style={{ display: 'flex', gap: 10, position: 'relative' }}>
+                            {/* Timeline line + dot */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 16 }}>
+                              <div style={{ width: 10, height: 10, borderRadius: '50%', background: isLast ? entryColor : 'var(--s2)', border: `2px solid ${entryColor}`, marginTop: 2, flexShrink: 0, boxShadow: isLast ? `0 0 6px ${entryColor}60` : 'none' }} />
+                              {!isLast && <div style={{ width: 1, flex: 1, background: 'var(--edge)', margin: '2px 0' }} />}
+                            </div>
+                            {/* Entry content */}
+                            <div style={{ flex: 1, paddingBottom: isLast ? 0 : 12 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                <span style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 500 }}>{entry.act}</span>
+                                <span style={{ fontSize: 9, color: entryColor, textTransform: 'capitalize', background: entryColor + '14', padding: '1px 6px', borderRadius: 3 }}>{entry.type}</span>
+                                <span style={{ fontSize: 9, color: 'var(--dim)', marginLeft: 'auto' }}>{entry.tension}/100</span>
+                                <button onClick={() => removeArcEntry(i)} style={{ fontSize: 9, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, fontWeight: 300 }}>{entry.note}</div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
