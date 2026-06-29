@@ -17,7 +17,6 @@
   --gold-bg:  rgba(212,184,112,.09);
   --gold-glow:rgba(212,184,112,.16);
 
-  /* Relationship colors */
   --ally:        #3FB950;
   --rival:       #F85149;
   --romantic:    #DB61A2;
@@ -39,17 +38,18 @@
   --radius-xl: 14px;
 }
 
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+/* Base font size bumped from 14px to 17px (+20%) */
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 17px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 #__next { height: 100%; }
 
-button { font-family: var(--font-ui); font-size: 13px; cursor: pointer; border: none; background: none; color: inherit; padding: 0; line-height: 1; }
+button { font-family: var(--font-ui); font-size: 16px; cursor: pointer; border: none; background: none; color: inherit; padding: 0; line-height: 1; }
 button:disabled { opacity: .4; cursor: default; }
 
 input, textarea, select {
-  font-family: var(--font-ui); font-size: 13px;
+  font-family: var(--font-ui); font-size: 16px;
   background: var(--s2); border: 1px solid var(--edge);
   color: var(--text); border-radius: var(--radius);
-  padding: 8px 11px; outline: none; width: 100%; line-height: 1.5;
+  padding: 9px 12px; outline: none; width: 100%; line-height: 1.5;
   transition: border-color .12s;
 }
 input:focus, textarea:focus, select:focus { border-color: var(--gold); }
@@ -57,25 +57,25 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
 textarea { resize: vertical; }
 select { appearance: none; cursor: pointer; }
 
-label { display: block; font-size: 10px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 2px; }
 
 /* ── Buttons ── */
-.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 15px; border-radius: var(--radius); font-size: 13px; font-weight: 500; font-family: var(--font-ui); cursor: pointer; border: none; transition: opacity .12s; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: var(--radius); font-size: 15px; font-weight: 500; font-family: var(--font-ui); cursor: pointer; border: none; transition: opacity .12s; white-space: nowrap; }
 .btn:hover:not(:disabled) { opacity: .82; }
 .btn-gold   { background: var(--gold); color: var(--bg); }
 .btn-ghost  { background: transparent; border: 1px solid var(--edge); color: var(--muted); }
 .btn-ghost:hover:not(:disabled) { border-color: var(--dim); color: var(--text); opacity: 1; }
 .btn-danger { color: var(--danger); background: transparent; border: 1px solid transparent; }
 .btn-danger:hover:not(:disabled) { border-color: var(--danger); opacity: 1; }
-.btn-sm { padding: 4px 10px; font-size: 12px; }
-.btn-xs { padding: 2px 8px; font-size: 11px; }
+.btn-sm { padding: 5px 12px; font-size: 14px; }
+.btn-xs { padding: 3px 9px; font-size: 13px; }
 
 /* ── Cards ── */
-.card { background: var(--s1); border: 1px solid var(--edge); border-radius: var(--radius-lg); padding: 16px; }
+.card { background: var(--s1); border: 1px solid var(--edge); border-radius: var(--radius-lg); padding: 18px; }
 
 /* ── Field ── */
 .field { display: flex; flex-direction: column; gap: 5px; }
@@ -92,29 +92,29 @@ label { display: block; font-size: 10px; font-weight: 500; color: var(--muted); 
 }
 @keyframes loreIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 .lore-bar { height: 2px; width: 100%; }
-.lore-inner { padding: 14px 16px 16px; }
-.lore-eyebrow { font-size: 9px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 5px; }
-.lore-name { font-family: var(--font-display); font-size: 19px; font-weight: 300; color: var(--text); letter-spacing: .2px; margin-bottom: 12px; line-height: 1.2; }
-.lore-divider { height: 1px; background: var(--edge); margin: 10px 0; }
-.lore-row { margin-bottom: 9px; }
+.lore-inner { padding: 16px 18px 18px; }
+.lore-eyebrow { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 6px; }
+.lore-name { font-family: var(--font-display); font-size: 23px; font-weight: 300; color: var(--text); letter-spacing: .2px; margin-bottom: 14px; line-height: 1.2; }
+.lore-divider { height: 1px; background: var(--edge); margin: 12px 0; }
+.lore-row { margin-bottom: 10px; }
 .lore-row:last-child { margin-bottom: 0; }
-.lore-label { font-size: 9px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 2px; }
-.lore-val { font-size: 11px; color: var(--muted); line-height: 1.55; font-weight: 300; }
+.lore-label { font-size: 11px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+.lore-val { font-size: 13px; color: var(--muted); line-height: 1.55; font-weight: 300; }
 
 /* ── Whisper banner ── */
 .whisper {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 50;
   background: rgba(8,8,13,.96); backdrop-filter: blur(16px);
   border-top: 1px solid var(--edge);
-  padding: 10px 18px;
-  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 14px;
   animation: slideUp .22s ease both;
 }
 @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ── Breathing dots ── */
 .breath-dot {
-  width: 3px; height: 3px; border-radius: 50%; background: var(--gold);
+  width: 4px; height: 4px; border-radius: 50%; background: var(--gold);
   animation: breathe 2.4s ease-in-out infinite;
 }
 .breath-dot:nth-child(2) { animation-delay: .3s; }
@@ -125,3 +125,5 @@ label { display: block; font-size: 10px; font-weight: 500; color: var(--muted); 
 @keyframes spin   { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .fade-in { animation: fadeIn .18s ease both; }
+
+@keyframes pulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
