@@ -773,35 +773,47 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
           </div>
         ))}
         <div className="lore-divider"/>
-        <div style={{ fontSize:12, color:'var(--dim)', fontWeight:300, marginBottom:8 }}>
-          {whisper.type === 'relationship_shift' ? 'Proposed relationship update' : 'Behavioral note — no relationship change needed'}
-        </div>
-        {whisper.type === 'relationship_shift' && (
-          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 12px', background:'rgba(255,255,255,.02)', border:'1px solid var(--edge)', borderRadius:5, marginBottom:14 }}>
-            <div style={{ textAlign:'center' }}>
-              <div style={{ fontSize:10, color:'var(--dim)', marginBottom:2 }}>Current</div>
-              <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, textTransform:'capitalize', textDecoration:'line-through' }}>
-                {relationships.find(r =>
-                  (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
-                  (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
-                )?.type || '?'} · {relationships.find(r =>
-                  (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
-                  (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
-                )?.tension ?? '?'}/100
+        {/* What changes in the bible */}
+        {whisper.type === 'relationship_shift' ? (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.07em', fontWeight:500, marginBottom:8 }}>What will change in your bible</div>
+            <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(212,184,112,.06)', border:'1px solid rgba(212,184,112,.2)', borderRadius:6 }}>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:10, color:'var(--dim)', marginBottom:3 }}>Current</div>
+                <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, textTransform:'capitalize', textDecoration:'line-through' }}>
+                  {(() => { const rel = relationships.find(r => (r.character_a === whisper.charAId && r.character_b === whisper.charBId) || (r.character_a === whisper.charBId && r.character_b === whisper.charAId)); return rel ? `${rel.type} · ${rel.tension}/100` : 'Unknown' })()}
+                </div>
+              </div>
+              <span style={{ fontSize:18, color:'var(--gold)' }}>→</span>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:10, color:'var(--dim)', marginBottom:3 }}>New</div>
+                <div style={{ fontSize:14, color:'var(--gold)', fontWeight:600, textTransform:'capitalize' }}>
+                  {whisper.proposedType} · {whisper.proposedTension}/100
+                </div>
               </div>
             </div>
-            <span style={{ fontSize:16, color:'var(--gold)' }}>→</span>
-            <div style={{ textAlign:'center' }}>
-              <div style={{ fontSize:10, color:'var(--dim)', marginBottom:2 }}>Proposed</div>
-              <div style={{ fontSize:13, color:'var(--gold)', fontWeight:500, textTransform:'capitalize' }}>
-                {whisper.proposedType} · {whisper.proposedTension}/100
-              </div>
+            <div style={{ fontSize:11, color:'var(--dim)', marginTop:6, fontWeight:300 }}>
+              Ties That Bind map and relationship card will update.
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom:14, padding:'12px 14px', background:'rgba(255,255,255,.02)', border:'1px solid var(--edge)', borderRadius:6 }}>
+            <div style={{ fontSize:11, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.07em', fontWeight:500, marginBottom:6 }}>What will change in your bible</div>
+            <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, lineHeight:1.5 }}>
+              Nothing. The relationship status stays the same.
+            </div>
+            <div style={{ fontSize:11, color:'var(--dim)', marginTop:4, fontWeight:300 }}>
+              This is a behavioral note only — Anchor flagged it so you're aware. Confirming just closes this card.
             </div>
           </div>
         )}
         <div style={{ display:'flex', gap:8 }}>
-          <button className="btn btn-gold" style={{ flex:1, justifyContent:'center', fontSize:12 }} onClick={onConfirm}>Confirm update</button>
-          <button className="btn btn-ghost" style={{ flex:1, justifyContent:'center', fontSize:12 }} onClick={onEdit}>Edit first</button>
+          <button className="btn btn-gold" style={{ flex:1, justifyContent:'center', fontSize:13 }} onClick={onConfirm}>
+            {whisper.type === 'relationship_shift' ? 'Update bible' : 'Got it'}
+          </button>
+          {whisper.type === 'relationship_shift' && (
+            <button className="btn btn-ghost" style={{ flex:1, justifyContent:'center', fontSize:13 }} onClick={onEdit}>Edit first</button>
+          )}
         </div>
       </div>
     </div>
