@@ -183,7 +183,6 @@ export default function WritingEditor({ project, script, characters, relationshi
       if (recentText.trim().length < 80) return
       const { systemPrompt, prompt } = buildRelationshipScanPrompt({ scriptChunk: recentText, characters, relationships })
       const raw = await callAI({ systemPrompt, prompt })
-      console.log('Living Bible raw:', raw.slice(0, 200))
       const cleaned = raw.replace(/```json|```/g, '').trim()
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
       if (!jsonMatch) return
@@ -199,11 +198,12 @@ export default function WritingEditor({ project, script, characters, relationshi
         setWhisper({
           relId: existingRel?.id || null,
           charAId: charA.id, charBId: charB.id,
-          charAName: result.character_a, charBName: result.character_b,
+          charAName: result.character_a, charBName: result.character_b || '',
           proposedType: result.proposed_type,
           proposedTension: result.proposed_tension,
           reasoning: result.reasoning || [],
           summary: result.summary,
+          type: result.type || 'relationship_shift',
         })
       }
     } catch (e) { console.error('Living Bible scan error:', e.message) }
@@ -539,7 +539,7 @@ export default function WritingEditor({ project, script, characters, relationshi
                 <div className="breath-dot"/><div className="breath-dot"/><div className="breath-dot"/>
               </div>
               <div style={{ flex:1, fontSize:12, color:'var(--muted)', fontWeight:300 }}>
-                <b style={{ color:'var(--text)', fontWeight:400 }}>{whisper.charAName} & {whisper.charBName}</b> — {whisper.summary}
+                <b style={{ color:'var(--text)', fontWeight:400 }}>{whisper.type === 'behavioral_contradiction' ? whisper.charAName : `${whisper.charAName} & ${whisper.charBName}`}</b>{whisper.type === 'behavioral_contradiction' ? ' — character contradiction' : ''} — {whisper.summary}
               </div>
               <button onClick={() => setWhyOpen(true)} style={{ fontSize:11, color:'var(--muted)', border:'1px solid var(--edge)', borderRadius:4, padding:'3px 9px', cursor:'pointer', background:'none', fontFamily:'var(--font-ui)', flexShrink:0 }}>Why?</button>
               <button onClick={confirmWhisperUpdate} style={{ fontSize:11, fontWeight:500, color:'var(--bg)', background:'var(--gold)', border:'none', borderRadius:5, padding:'5px 12px', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0 }}>Confirm update</button>
