@@ -167,9 +167,9 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
               </div>
               <button
                 onClick={e => { e.stopPropagation(); if (confirm(`Delete "${p.title}"?`)) onDelete(p.id) }}
-                style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, color: 'var(--dim)', opacity: 0, background:'none', border:'none', cursor:'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = 'var(--danger)' }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = 0 }}
+                style={{ position: 'absolute', top: 10, right: 10, fontSize: 13, color: 'var(--dim)', opacity: 0.4, background:'rgba(0,0,0,.3)', border:'1px solid var(--edge)', borderRadius:4, cursor:'pointer', width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger)' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.color = 'var(--dim)'; e.currentTarget.style.borderColor = 'var(--edge)' }}
               >✕</button>
             </div>
           ))}
