@@ -538,12 +538,25 @@ export default function WritingEditor({ project, script, characters, relationshi
               <div style={{ display:'flex', gap:3 }}>
                 <div className="breath-dot"/><div className="breath-dot"/><div className="breath-dot"/>
               </div>
-              <div style={{ flex:1, fontSize:12, color:'var(--muted)', fontWeight:300 }}>
-                <b style={{ color:'var(--text)', fontWeight:400 }}>{whisper.type === 'behavioral_contradiction' ? whisper.charAName : `${whisper.charAName} & ${whisper.charBName}`}</b>{whisper.type === 'behavioral_contradiction' ? ' — character contradiction' : ''} — {whisper.summary}
+              <div style={{ flex:1, fontSize:13, color:'var(--muted)', fontWeight:300 }}>
+                <b style={{ color:'var(--text)', fontWeight:500 }}>
+                  {whisper.type === 'behavioral_contradiction' ? whisper.charAName : `${whisper.charAName} & ${whisper.charBName}`}
+                </b>
+                {' — '}{whisper.summary}
+                {whisper.type === 'relationship_shift' && whisper.proposedType && (
+                  <span style={{ marginLeft:8, fontSize:12, color:'var(--gold)', fontWeight:400 }}>
+                    {relationships.find(r =>
+                      (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
+                      (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
+                    )?.type || '?'} → {whisper.proposedType} · tension {whisper.proposedTension}/100
+                  </span>
+                )}
               </div>
-              <button onClick={() => setWhyOpen(true)} style={{ fontSize:11, color:'var(--muted)', border:'1px solid var(--edge)', borderRadius:4, padding:'3px 9px', cursor:'pointer', background:'none', fontFamily:'var(--font-ui)', flexShrink:0 }}>Why?</button>
-              <button onClick={confirmWhisperUpdate} style={{ fontSize:11, fontWeight:500, color:'var(--bg)', background:'var(--gold)', border:'none', borderRadius:5, padding:'5px 12px', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0 }}>Confirm update</button>
-              <button onClick={() => setWhisper(null)} style={{ fontSize:11, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0, fontWeight:300 }}>Dismiss</button>
+              <button onClick={() => setWhyOpen(true)} style={{ fontSize:13, color:'var(--muted)', border:'1px solid var(--edge)', borderRadius:4, padding:'4px 10px', cursor:'pointer', background:'none', fontFamily:'var(--font-ui)', flexShrink:0 }}>Why?</button>
+              <button onClick={confirmWhisperUpdate} style={{ fontSize:13, fontWeight:500, color:'var(--bg)', background:'var(--gold)', border:'none', borderRadius:5, padding:'6px 14px', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0 }}>
+                {whisper.type === 'relationship_shift' ? 'Update relationship' : 'Noted'}
+              </button>
+              <button onClick={() => setWhisper(null)} style={{ fontSize:13, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0, fontWeight:300 }}>Dismiss</button>
             </div>
           )}
 
@@ -760,12 +773,32 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
           </div>
         ))}
         <div className="lore-divider"/>
-        <div style={{ fontSize:10, color:'var(--dim)', fontWeight:300, marginBottom:6 }}>Proposed update</div>
-        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'rgba(255,255,255,.02)', border:'1px solid var(--edge)', borderRadius:5, marginBottom:14 }}>
-          <span style={{ fontSize:11, color:'var(--dim)', fontWeight:300, textDecoration:'line-through' }}>Current</span>
-          <span style={{ fontSize:10, color:'var(--dim)' }}>→</span>
-          <span style={{ fontSize:11, color:'var(--gold)', fontWeight:400, textTransform:'capitalize' }}>{whisper.proposedType} · tension {whisper.proposedTension}</span>
+        <div style={{ fontSize:12, color:'var(--dim)', fontWeight:300, marginBottom:8 }}>
+          {whisper.type === 'relationship_shift' ? 'Proposed relationship update' : 'Behavioral note — no relationship change needed'}
         </div>
+        {whisper.type === 'relationship_shift' && (
+          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 12px', background:'rgba(255,255,255,.02)', border:'1px solid var(--edge)', borderRadius:5, marginBottom:14 }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontSize:10, color:'var(--dim)', marginBottom:2 }}>Current</div>
+              <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, textTransform:'capitalize', textDecoration:'line-through' }}>
+                {relationships.find(r =>
+                  (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
+                  (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
+                )?.type || '?'} · {relationships.find(r =>
+                  (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
+                  (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
+                )?.tension ?? '?'}/100
+              </div>
+            </div>
+            <span style={{ fontSize:16, color:'var(--gold)' }}>→</span>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontSize:10, color:'var(--dim)', marginBottom:2 }}>Proposed</div>
+              <div style={{ fontSize:13, color:'var(--gold)', fontWeight:500, textTransform:'capitalize' }}>
+                {whisper.proposedType} · {whisper.proposedTension}/100
+              </div>
+            </div>
+          </div>
+        )}
         <div style={{ display:'flex', gap:8 }}>
           <button className="btn btn-gold" style={{ flex:1, justifyContent:'center', fontSize:12 }} onClick={onConfirm}>Confirm update</button>
           <button className="btn btn-ghost" style={{ flex:1, justifyContent:'center', fontSize:12 }} onClick={onEdit}>Edit first</button>
