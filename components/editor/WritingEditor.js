@@ -365,8 +365,24 @@ export default function WritingEditor({ project, script, characters, relationshi
 
   async function confirmWhisperUpdate() {
     if (!whisper) return
-    const patch = { type:whisper.proposedType, tension:whisper.proposedTension, ai_reasoning:whisper.reasoning.join('\n') }
-    if (whisper.relId) await onUpdateRelationship(whisper.relId, patch)
+    if (whisper.type === 'relationship_shift' && whisper.relId) {
+      // Find existing arc and append new entry
+      const existingRel = relationships.find(r => r.id === whisper.relId)
+      const currentArc  = Array.isArray(existingRel?.arc) ? existingRel.arc : []
+      const newEntry    = {
+        act:       'Living Bible',
+        type:      whisper.proposedType,
+        tension:   whisper.proposedTension,
+        note:      whisper.summary,
+        timestamp: new Date().toISOString(),
+      }
+      await onUpdateRelationship(whisper.relId, {
+        type:         whisper.proposedType,
+        tension:      whisper.proposedTension,
+        ai_reasoning: whisper.reasoning.join('\n'),
+        arc:          [...currentArc, newEntry],
+      })
+    }
     setWhisper(null); setWhyOpen(false)
   }
 
