@@ -21,6 +21,7 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
   const [arcForm, setArcForm]     = useState({ act: 'Act 1', note: '' })
   const [addingArc, setAddingArc] = useState(false)
   const [hoveredEdge, setHoveredEdge] = useState(null)
+  const [actFilter, setActFilter] = useState('All')
 
   useEffect(() => {
     const el = svgRef.current?.parentElement
@@ -85,6 +86,7 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
     setLoreRel(rel)
     setRelForm({ type: rel.type, status: rel.status, history: rel.history, notes: rel.notes, tension: rel.tension })
     setAddingArc(false)
+    setArcForm(f => ({ ...f, act: actFilter !== 'All' ? actFilter : 'Act 1' }))
   }
 
   async function saveRel() {
@@ -144,6 +146,21 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
           )}
         </div>
 
+        {/* Act tabs — filter arc history view */}
+        <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 10, display: 'flex', gap: 3, background: 'rgba(15,15,22,.9)', backdropFilter: 'blur(12px)', border: '1px solid var(--edge)', borderRadius: 7, padding: 4 }}>
+          {['All', 'Act 1', 'Act 2', 'Act 3'].map(act => (
+            <button key={act} onClick={() => setActFilter(act)} style={{
+              fontSize: 11, padding: '5px 11px', borderRadius: 5, cursor: 'pointer',
+              background: actFilter === act ? 'var(--gold-bg)' : 'transparent',
+              color: actFilter === act ? 'var(--gold)' : 'var(--muted)',
+              border: `1px solid ${actFilter === act ? 'rgba(200,169,106,.2)' : 'transparent'}`,
+              fontFamily: 'var(--font-ui)', fontWeight: actFilter === act ? 500 : 400,
+            }}>
+              {act}
+            </button>
+          ))}
+        </div>
+
         {/* Filter pills */}
         <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 5, background: 'rgba(8,8,13,.85)', backdropFilter: 'blur(16px)', border: '1px solid var(--edge)', borderRadius: 24, padding: '5px 7px' }}>
           {['All', ...REL_TYPES.map(t => t.charAt(0).toUpperCase() + t.slice(1))].map((label, i) => (
@@ -180,8 +197,10 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
               const isHov  = hoveredEdge === rel.id
               const mx     = (posA.x + posB.x) / 2
               const my     = (posA.y + posB.y) / 2
-              const arc    = Array.isArray(rel.arc) ? rel.arc : []
-              const active = isSel || isHov
+              const arc      = Array.isArray(rel.arc) ? rel.arc : []
+              const active   = isSel || isHov
+              const inAct    = actFilter === 'All' || arc.some(e => e.act === actFilter)
+              const lineOpac = !inAct ? 0.12 : (isSel ? 1 : isHov ? 0.85 : .45)
 
               return (
                 <g key={rel.id}
@@ -192,7 +211,7 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
                 >
                   <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke="transparent" strokeWidth={18} />
                   {active && <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={8} opacity={.12} filter="url(#ttb-glow)" />}
-                  <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={isSel ? 2 : isHov ? 1.8 : 1.2} opacity={isSel ? 1 : isHov ? 0.85 : .45} />
+                  <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={isSel ? 2 : isHov ? 1.8 : 1.2} opacity={lineOpac} />
                   {rel.tension > 60 && !active && <circle cx={mx} cy={my} r={rel.tension / 22 + 2} fill={color} opacity={.15} />}
 
                   {/* Always-visible midpoint pill — signals "clickable" */}
@@ -410,30 +429,47 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
                     </div>
                   )}
 
-                  {/* Arc timeline */}
-                  {arc.length === 0 ? (
-                    <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic', fontWeight: 300, paddingBottom: 4 }}>
-                      No arc logged yet. Anchor will add entries automatically when you confirm Living Bible updates, or add them manually above.
+                  {/* Act filter indicator inside card */}
+                  {actFilter !== 'All' && (
+                    <div style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 400, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--gold)' }} />
+                      Showing {actFilter} only
+                      <button onClick={() => setActFilter('All')} style={{ fontSize: 10, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}>Clear</button>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* Arc timeline */}
+                  {(() => {
+                    const filteredArc = actFilter === 'All' ? arc : arc.filter(e => e.act === actFilter)
+                    if (filteredArc.length === 0) {
+                      return (
+                        <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic', fontWeight: 300, paddingBottom: 4 }}>
+                          {actFilter === 'All'
+                            ? 'No arc logged yet. Anchor will add entries automatically when you confirm Living Bible updates, or add them manually above.'
+                            : `No arc entries logged for ${actFilter} yet.`}
+                        </div>
+                      )
+                    }
+                    return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                      {arc.map((entry, i) => {
+                      {filteredArc.map((entry, i) => {
+                        const arcIdx = arc.indexOf(entry)
                         const entryColor = REL_COLORS[entry.type] || 'var(--muted)'
-                        const isLast = i === arc.length - 1
+                        const isLast = arcIdx === arc.length - 1
                         return (
-                          <div key={i} style={{ display: 'flex', gap: 10, position: 'relative' }}>
+                          <div key={arcIdx} style={{ display: 'flex', gap: 10, position: 'relative' }}>
                             {/* Timeline line + dot */}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 16 }}>
                               <div style={{ width: 10, height: 10, borderRadius: '50%', background: isLast ? entryColor : 'var(--s2)', border: `2px solid ${entryColor}`, marginTop: 2, flexShrink: 0, boxShadow: isLast ? `0 0 6px ${entryColor}60` : 'none' }} />
-                              {!isLast && <div style={{ width: 1, flex: 1, background: 'var(--edge)', margin: '2px 0' }} />}
+                              {i < filteredArc.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--edge)', margin: '2px 0' }} />}
                             </div>
                             {/* Entry content */}
-                            <div style={{ flex: 1, paddingBottom: isLast ? 0 : 12 }}>
+                            <div style={{ flex: 1, paddingBottom: i < filteredArc.length - 1 ? 12 : 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                                 <span style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 500 }}>{entry.act}</span>
                                 <span style={{ fontSize: 9, color: entryColor, textTransform: 'capitalize', background: entryColor + '14', padding: '1px 6px', borderRadius: 3 }}>{entry.type}</span>
                                 <span style={{ fontSize: 9, color: 'var(--dim)', marginLeft: 'auto' }}>{entry.tension}/100</span>
-                                <button onClick={() => removeArcEntry(i)} style={{ fontSize: 9, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+                                <button onClick={() => removeArcEntry(arcIdx)} style={{ fontSize: 9, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
                               </div>
                               <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, fontWeight: 300 }}>{entry.note}</div>
                             </div>
@@ -441,7 +477,8 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
                         )
                       })}
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
               </div>
             </div>
