@@ -24,6 +24,8 @@ export default function Shell({ project, onExit }) {
   const [script, setScript]           = useState(null)
   const [loading, setLoading]         = useState(true)
   const [showSettings, setSettings]   = useState(false)
+  const [pulseCache, setPulseCache]   = useState(null)  // cached Story Pulse result
+  const [pulseScriptId, setPulseScriptId] = useState(null) // script id when pulse was last run
 
   useEffect(() => { loadAll() }, [project.id])
 
@@ -161,7 +163,7 @@ export default function Shell({ project, onExit }) {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13, fontWeight: 300 }}>Loading story bible…</div>
         ) : (
           <>
-            {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} {...locOps} onNavigate={setModule} />}
+            {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} {...locOps} onNavigate={setModule} pulseCache={pulseCache} setPulseCache={setPulseCache} pulseScriptId={pulseScriptId} setPulseScriptId={setPulseScriptId} />}
             {module === 'characters' && <CharactersModule  {...shared} {...charOps} />}
             {module === 'ties'       && <TiesThatBind      {...shared} {...charOps} {...relOps} />}
             {module === 'locations'  && <LocationsModule   {...shared} {...locOps} />}
