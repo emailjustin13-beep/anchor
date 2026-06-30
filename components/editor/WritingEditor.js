@@ -135,6 +135,7 @@ export default function WritingEditor({ project, script, characters, relationshi
 
   const refs      = useRef({})   // blockId → contentEditable DOM el
   const blocksRef = useRef(blocks) // always-current blocks for event handlers
+  const pageRefs  = useRef({})    // pageIndex → page card DOM el
   const saveTimer = useRef(null)
   const scanTimer = useRef(null)
   const scrollRef = useRef(null)
@@ -157,6 +158,29 @@ export default function WritingEditor({ project, script, characters, relationshi
       }, 50)
     }
   }, [script?.id])
+
+  // IntersectionObserver — track which page is most visible
+  useEffect(() => {
+    const observers = []
+    const visibility = {}
+    const updateActivePage = () => {
+      let maxRatio = -1, maxIdx = 0
+      for (const [idx, ratio] of Object.entries(visibility)) {
+        if (ratio > maxRatio) { maxRatio = ratio; maxIdx = parseInt(idx) }
+      }
+      setActivePageIdx(maxIdx)
+    }
+    Object.entries(pageRefs.current).forEach(([idx, el]) => {
+      if (!el) return
+      const obs = new IntersectionObserver(([entry]) => {
+        visibility[idx] = entry.intersectionRatio
+        updateActivePage()
+      }, { root: scrollRef.current, threshold: Array.from({length:11}, (_,i) => i/10) })
+      obs.observe(el)
+      observers.push(obs)
+    })
+    return () => observers.forEach(o => o.disconnect())
+  }, [pages.length])
 
   // Auto-save
   const scheduleAutoSave = useCallback((newBlocks, newTitle) => {
@@ -495,7 +519,7 @@ export default function WritingEditor({ project, script, characters, relationshi
               <div style={{ textAlign:'right', fontSize:10, color:'#888', fontFamily:"'Courier Prime', monospace", marginBottom:4, paddingRight:4 }}>
                 {pageIndex + 1}.
               </div>
-              <div style={{
+              <div ref={el => pageRefs.current[pageIndex] = el} style={{
                 background:'#F8F8F6', borderRadius:2,
                 padding: project.format === 'screenplay' ? '52px 72px 60px' : '48px 60px 60px',
                 minHeight:880, boxShadow:'0 4px 24px rgba(0,0,0,.5)',
@@ -511,7 +535,7 @@ export default function WritingEditor({ project, script, characters, relationshi
                     data-placeholder={BLOCKS[block.type]?.hint}
                     onInput={e => handleInput(e, block)}
                     onKeyDown={e => handleKeyDown(e, block)}
-                    onFocus={() => { setFocusId(block.id); setDropdown(false); setActivePageIdx(pageIndex) }}
+                    onFocus={() => { setFocusId(block.id); setDropdown(false) }}
                     onBlur={() => setFocusId(id => id === block.id ? null : id)}
                     style={{
                       ...getBlockCSS(block.type),
