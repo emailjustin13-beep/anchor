@@ -44,7 +44,7 @@ export default function Shell({ project, onExit }) {
     setLocations(locs.data || [])
     setScript(scr.data || null)
     setLoading(false)
-    if (!project.onboarded) setShowOnboarding(true)
+    if (project.onboarded === false) setShowOnboarding(true)
   }
 
   // ── Character actions ──────────────────────────────────────
@@ -180,7 +180,7 @@ export default function Shell({ project, onExit }) {
         )}
       </main>
 
-      {showSettings && <Settings onClose={() => setSettings(false)} />}
+      {showSettings && <Settings onClose={() => setSettings(false)} onReplayOnboarding={() => { setShowOnboarding(true) }} />}
       {showOnboarding && <Onboarding onComplete={completeOnboarding} />}
     </div>
   )
