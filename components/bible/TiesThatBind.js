@@ -20,6 +20,7 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
   const [saving, setSaving]       = useState(false)
   const [arcForm, setArcForm]     = useState({ act: 'Act 1', note: '' })
   const [addingArc, setAddingArc] = useState(false)
+  const [hoveredEdge, setHoveredEdge] = useState(null)
 
   useEffect(() => {
     const el = svgRef.current?.parentElement
@@ -171,28 +172,52 @@ export default function TiesThatBind({ characters, relationships, onCreateRelati
 
             {/* Edges */}
             {relationships.map(rel => {
-              const posA = positions[rel.character_a]
-              const posB = positions[rel.character_b]
+              const posA   = positions[rel.character_a]
+              const posB   = positions[rel.character_b]
               if (!posA || !posB) return null
-              const color = REL_COLORS[rel.type] || REL_COLORS.stranger
-              const isSel = selected?.type === 'edge' && selected.id === rel.id
-              const mx    = (posA.x + posB.x) / 2
-              const my    = (posA.y + posB.y) / 2
-              const arc   = Array.isArray(rel.arc) ? rel.arc : []
+              const color  = REL_COLORS[rel.type] || REL_COLORS.stranger
+              const isSel  = selected?.type === 'edge' && selected.id === rel.id
+              const isHov  = hoveredEdge === rel.id
+              const mx     = (posA.x + posB.x) / 2
+              const my     = (posA.y + posB.y) / 2
+              const arc    = Array.isArray(rel.arc) ? rel.arc : []
+              const active = isSel || isHov
 
               return (
-                <g key={rel.id} onClick={e => handleEdgeClick(e, rel)} style={{ cursor: 'pointer' }}>
+                <g key={rel.id}
+                  onClick={e => handleEdgeClick(e, rel)}
+                  onMouseEnter={() => setHoveredEdge(rel.id)}
+                  onMouseLeave={() => setHoveredEdge(null)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke="transparent" strokeWidth={18} />
-                  {isSel && <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={8} opacity={.1} filter="url(#ttb-glow)" />}
-                  <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={isSel ? 2 : 1.2} opacity={isSel ? 1 : .45} />
-                  {isSel && <circle cx={mx} cy={my} r={4} fill={color} opacity={.9} />}
-                  {isSel && <circle cx={mx} cy={my} r={10} fill={color} opacity={.1} />}
-                  {rel.tension > 60 && !isSel && <circle cx={mx} cy={my} r={rel.tension / 22 + 2} fill={color} opacity={.15} />}
-                  {/* Arc count badge */}
-                  {arc.length > 0 && !isSel && (
-                    <text x={mx + 8} y={my - 8} fontSize={8} fill={color} fontFamily="Inter,sans-serif" fontWeight="500" opacity={.7}>{arc.length}</text>
+                  {active && <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={8} opacity={.12} filter="url(#ttb-glow)" />}
+                  <line x1={posA.x} y1={posA.y} x2={posB.x} y2={posB.y} stroke={color} strokeWidth={isSel ? 2 : isHov ? 1.8 : 1.2} opacity={isSel ? 1 : isHov ? 0.85 : .45} />
+                  {rel.tension > 60 && !active && <circle cx={mx} cy={my} r={rel.tension / 22 + 2} fill={color} opacity={.15} />}
+
+                  {/* Always-visible midpoint pill — signals "clickable" */}
+                  {!active && (
+                    <g opacity={0.55}>
+                      <circle cx={mx} cy={my} r={9} fill="#09090D" stroke={color} strokeWidth={1} opacity={0.8} />
+                      <text x={mx} y={my} textAnchor="middle" dominantBaseline="central" fontSize={9} fill={color} fontFamily="Inter,sans-serif" style={{ pointerEvents:'none' }}>⊕</text>
+                    </g>
                   )}
-                  {isSel && <text x={mx} y={my - 12} textAnchor="middle" fontSize={9} fill={color} fontFamily="Inter,sans-serif" fontWeight="400" opacity={.9} style={{ pointerEvents: 'none' }}>{rel.type}</text>}
+
+                  {/* Hover/selected state — bigger, shows type */}
+                  {active && (
+                    <g>
+                      <circle cx={mx} cy={my} r={14} fill="#09090D" stroke={color} strokeWidth={1.5} />
+                      <circle cx={mx} cy={my} r={4} fill={color} />
+                    </g>
+                  )}
+                  {/* Arc count badge */}
+                  {arc.length > 0 && (
+                    <g transform={`translate(${mx + 14},${my - 14})`}>
+                      <circle r={7} fill={color} opacity={0.9} />
+                      <text textAnchor="middle" dominantBaseline="central" fontSize={8} fill="#09090D" fontFamily="Inter,sans-serif" fontWeight="700" style={{ pointerEvents:'none' }}>{arc.length}</text>
+                    </g>
+                  )}
+                  {active && <text x={mx} y={my - 20} textAnchor="middle" fontSize={10} fill={color} fontFamily="Inter,sans-serif" fontWeight="500" opacity={.95} style={{ pointerEvents: 'none' }}>{rel.type} · click for details</text>}
                 </g>
               )
             })}
