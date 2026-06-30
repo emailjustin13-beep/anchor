@@ -1,6 +1,16 @@
 'use client'
 import { useState } from 'react'
 
+// Drop your Loom URLs here when ready — one per step
+// Leave as null to show the placeholder frame
+const STEP_VIDEOS = {
+  welcome:       null, // e.g. 'https://www.loom.com/embed/abc123'
+  first_read:    null,
+  xray:          null,
+  pressure_test: null,
+  living_bible:  null,
+}
+
 const STEPS = [
   {
     id: 'welcome',
@@ -15,7 +25,7 @@ const STEPS = [
     id: 'first_read',
     title: 'First Read',
     subtitle: 'Already have a script?',
-    body: 'Paste your existing script when creating a new project — or use the First Read banner inside the Write module. Anchor will detect your characters, infer their traits, and map their relationships for you to confirm. You approve everything before it saves.',
+    body: 'Paste your existing script when creating a new project — or use the First Read banner inside the Write module. Anchor detects your characters, infers their traits, and maps their relationships for you to confirm. You approve everything before it saves.',
     icon: '◈',
     cta: 'Next',
   },
@@ -23,7 +33,7 @@ const STEPS = [
     id: 'xray',
     title: 'X-Ray',
     subtitle: 'Know who\'s in the room.',
-    body: 'While you write, the X-Ray panel on the right reads the current page and surfaces every character present — their goals, fears, and voice patterns — without you leaving the editor. The three breathing dots mean Anchor is watching.',
+    body: 'While you write, the X-Ray panel on the right reads the current page and surfaces every character present — their goals, fears, and voice patterns — without leaving the editor. The three breathing dots mean Anchor is watching.',
     icon: '✦',
     cta: 'Next',
   },
@@ -45,10 +55,37 @@ const STEPS = [
   },
 ]
 
+function VideoFrame({ videoUrl, stepId }) {
+  if (videoUrl) {
+    return (
+      <div style={{ width:'100%', borderRadius:8, overflow:'hidden', background:'#000', marginBottom:20, aspectRatio:'16/9' }}>
+        <iframe
+          src={videoUrl}
+          frameBorder="0"
+          allowFullScreen
+          style={{ width:'100%', height:'100%', border:'none' }}
+        />
+      </div>
+    )
+  }
+
+  // Placeholder
+  return (
+    <div style={{
+      width:'100%', aspectRatio:'16/9', borderRadius:8, marginBottom:20,
+      background:'var(--s2)', border:'1px dashed var(--edge)',
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8,
+    }}>
+      <div style={{ fontSize:24, opacity:0.3 }}>▶</div>
+      <div style={{ fontSize:11, color:'var(--dim)', fontWeight:300 }}>Video coming soon</div>
+    </div>
+  )
+}
+
 export default function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0)
-  const current = STEPS[step]
-  const isLast  = step === STEPS.length - 1
+  const current  = STEPS[step]
+  const isLast   = step === STEPS.length - 1
   const progress = (step / (STEPS.length - 1)) * 100
 
   function next() {
@@ -58,82 +95,86 @@ export default function Onboarding({ onComplete }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,.75)', backdropFilter: 'blur(16px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24,
+      position:'fixed', inset:0, zIndex:200,
+      background:'rgba(0,0,0,.8)', backdropFilter:'blur(16px)',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      padding:24,
     }}>
       <div style={{
-        background: 'var(--s1)', border: '1px solid var(--edge)',
-        borderRadius: 16, width: '100%', maxWidth: 480,
-        overflow: 'hidden', position: 'relative',
+        background:'var(--s1)', border:'1px solid var(--edge)',
+        borderRadius:16, width:'100%', maxWidth:520,
+        overflow:'hidden', position:'relative',
+        maxHeight:'90vh', overflowY:'auto',
       }} className="fade-in">
 
         {/* Progress bar */}
-        <div style={{ height: 2, background: 'var(--edge)', position: 'relative' }}>
-          <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${progress}%`, background: 'var(--gold)', transition: 'width .3s ease' }} />
+        <div style={{ height:2, background:'var(--edge)', position:'relative', flexShrink:0 }}>
+          <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${progress}%`, background:'var(--gold)', transition:'width .3s ease' }} />
         </div>
 
-        <div style={{ padding: '32px 36px 28px' }}>
+        <div style={{ padding:'28px 32px 24px' }}>
 
           {/* Icon */}
           <div style={{
-            width: 52, height: 52, borderRadius: 12,
-            background: 'var(--gold-bg)', border: '1px solid rgba(200,169,106,.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: 24,
+            width:48, height:48, borderRadius:10,
+            background:'var(--gold-bg)', border:'1px solid rgba(200,169,106,.2)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            marginBottom:20,
             fontFamily: current.iconFont ? 'var(--font-display)' : 'var(--font-ui)',
-            fontSize: current.iconFont ? 28 : 22,
-            color: 'var(--gold)', fontWeight: 300, letterSpacing: current.iconFont ? 2 : 0,
+            fontSize: current.iconFont ? 26 : 20,
+            color:'var(--gold)', fontWeight:300, letterSpacing: current.iconFont ? 2 : 0,
           }}>
             {current.icon}
           </div>
 
           {/* Step label */}
-          <div style={{ fontSize: 11, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.1em', fontWeight: 500, marginBottom: 8 }}>
+          <div style={{ fontSize:11, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.1em', fontWeight:500, marginBottom:6 }}>
             {step === 0 ? 'Welcome to Anchor' : `Feature ${step} of ${STEPS.length - 1}`}
           </div>
 
           {/* Title */}
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--text)', fontWeight: 300, marginBottom: 4, lineHeight: 1.2 }}>
+          <div style={{ fontFamily:'var(--font-display)', fontSize:24, color:'var(--text)', fontWeight:300, marginBottom:4, lineHeight:1.2 }}>
             {current.title}
           </div>
 
           {/* Subtitle */}
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--gold)', fontWeight: 300, fontStyle: 'italic', marginBottom: 16 }}>
+          <div style={{ fontFamily:'var(--font-display)', fontSize:15, color:'var(--gold)', fontWeight:300, fontStyle:'italic', marginBottom:16 }}>
             {current.subtitle}
           </div>
 
+          {/* Video */}
+          <VideoFrame videoUrl={STEP_VIDEOS[current.id]} stepId={current.id} />
+
           {/* Body */}
-          <div style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, fontWeight: 300, marginBottom: 32 }}>
+          <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.75, fontWeight:300, marginBottom:28 }}>
             {current.body}
           </div>
 
-          {/* Step dots */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: 6 }}>
+          {/* Step dots + nav */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', gap:6 }}>
               {STEPS.map((_, i) => (
                 <div key={i} onClick={() => setStep(i)} style={{
-                  width: i === step ? 20 : 6, height: 6, borderRadius: 3,
+                  width: i === step ? 20 : 6, height:6, borderRadius:3,
                   background: i === step ? 'var(--gold)' : i < step ? 'var(--gold-dim)' : 'var(--edge)',
-                  cursor: 'pointer', transition: 'all .2s',
+                  cursor:'pointer', transition:'all .2s',
                 }} />
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               {step > 0 && (
-                <button onClick={() => setStep(s => s - 1)} style={{ fontSize: 13, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)', padding: '8px 4px' }}>
+                <button onClick={() => setStep(s => s - 1)} style={{ fontSize:13, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', padding:'8px 4px' }}>
                   ← Back
                 </button>
               )}
               <button onClick={next} style={{
-                padding: '10px 24px', borderRadius: 8,
+                padding:'10px 22px', borderRadius:8,
                 background: isLast ? 'var(--gold)' : 'var(--s2)',
                 color: isLast ? 'var(--bg)' : 'var(--text)',
-                border: `1px solid ${isLast ? 'var(--gold)' : 'var(--edge)'}`,
-                fontSize: 14, fontWeight: 500, cursor: 'pointer',
-                fontFamily: 'var(--font-ui)', transition: 'all .15s',
+                border:`1px solid ${isLast ? 'var(--gold)' : 'var(--edge)'}`,
+                fontSize:13, fontWeight:500, cursor:'pointer',
+                fontFamily:'var(--font-ui)', transition:'all .15s',
               }}>
                 {current.cta}
               </button>
@@ -142,8 +183,8 @@ export default function Onboarding({ onComplete }) {
 
           {/* Skip */}
           {!isLast && (
-            <div style={{ textAlign: 'center', marginTop: 16 }}>
-              <button onClick={onComplete} style={{ fontSize: 12, color: 'var(--dim)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontWeight: 300 }}>
+            <div style={{ textAlign:'center', marginTop:14 }}>
+              <button onClick={onComplete} style={{ fontSize:12, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', fontWeight:300 }}>
                 Skip intro
               </button>
             </div>
