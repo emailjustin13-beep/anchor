@@ -7,6 +7,7 @@ import TiesThatBind      from './bible/TiesThatBind'
 import LocationsModule   from './bible/LocationsModule'
 import WritingEditor     from './editor/WritingEditor'
 import Settings          from './shared/Settings'
+import Onboarding        from './shared/Onboarding'
 
 const NAV = [
   { id: 'bible',      icon: '◈', label: 'Story Bible'    },
@@ -24,6 +25,7 @@ export default function Shell({ project, onExit }) {
   const [script, setScript]           = useState(null)
   const [loading, setLoading]         = useState(true)
   const [showSettings, setSettings]   = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [pulseCache, setPulseCache]   = useState(null)  // cached Story Pulse result
   const [pulseScriptId, setPulseScriptId] = useState(null) // script id when pulse was last run
 
@@ -42,6 +44,7 @@ export default function Shell({ project, onExit }) {
     setLocations(locs.data || [])
     setScript(scr.data || null)
     setLoading(false)
+    if (!project.onboarded) setShowOnboarding(true)
   }
 
   // ── Character actions ──────────────────────────────────────
@@ -122,6 +125,11 @@ export default function Shell({ project, onExit }) {
     }
   }
 
+  async function completeOnboarding() {
+    setShowOnboarding(false)
+    await supabase.from('projects').update({ onboarded: true }).eq('id', project.id)
+  }
+
   const shared  = { project, characters, relationships, locations, script }
   const charOps = { onCreateCharacter: createCharacter, onUpdateCharacter: updateCharacter, onDeleteCharacter: deleteCharacter }
   const relOps  = { onCreateRelationship: createRelationship, onUpdateRelationship: updateRelationship, onDeleteRelationship: deleteRelationship }
@@ -173,6 +181,7 @@ export default function Shell({ project, onExit }) {
       </main>
 
       {showSettings && <Settings onClose={() => setSettings(false)} />}
+      {showOnboarding && <Onboarding onComplete={completeOnboarding} />}
     </div>
   )
 }
