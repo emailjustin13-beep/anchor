@@ -159,29 +159,6 @@ export default function WritingEditor({ project, script, characters, relationshi
     }
   }, [script?.id])
 
-  // IntersectionObserver — track which page is most visible
-  useEffect(() => {
-    const observers = []
-    const visibility = {}
-    const updateActivePage = () => {
-      let maxRatio = -1, maxIdx = 0
-      for (const [idx, ratio] of Object.entries(visibility)) {
-        if (ratio > maxRatio) { maxRatio = ratio; maxIdx = parseInt(idx) }
-      }
-      setActivePageIdx(maxIdx)
-    }
-    Object.entries(pageRefs.current).forEach(([idx, el]) => {
-      if (!el) return
-      const obs = new IntersectionObserver(([entry]) => {
-        visibility[idx] = entry.intersectionRatio
-        updateActivePage()
-      }, { root: scrollRef.current, threshold: Array.from({length:11}, (_,i) => i/10) })
-      obs.observe(el)
-      observers.push(obs)
-    })
-    return () => observers.forEach(o => o.disconnect())
-  }, [pages.length])
-
   // Auto-save
   const scheduleAutoSave = useCallback((newBlocks, newTitle) => {
     setSaveMsg(null); setSaving(true)
@@ -416,6 +393,30 @@ export default function WritingEditor({ project, script, characters, relationshi
   const showBanner   = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
   const activePage   = pages[activePageIdx] || pages[0] || []
   const sceneChars   = detectCharsInScene(activePage, characters)
+
+  // IntersectionObserver — track which page is most visible in viewport
+  // Runs after pages are computed, uses blocks.length as dependency
+  useEffect(() => {
+    const observers = []
+    const visibility = {}
+    const updateActivePage = () => {
+      let maxRatio = -1, maxIdx = 0
+      for (const [idx, ratio] of Object.entries(visibility)) {
+        if (ratio > maxRatio) { maxRatio = ratio; maxIdx = parseInt(idx) }
+      }
+      setActivePageIdx(maxIdx)
+    }
+    Object.entries(pageRefs.current).forEach(([idx, el]) => {
+      if (!el) return
+      const obs = new IntersectionObserver(([entry]) => {
+        visibility[idx] = entry.intersectionRatio
+        updateActivePage()
+      }, { root: scrollRef.current, threshold: Array.from({length:11}, (_,i) => i/10) })
+      obs.observe(el)
+      observers.push(obs)
+    })
+    return () => observers.forEach(o => o.disconnect())
+  }, [blocks.length])
 
   return (
     <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
