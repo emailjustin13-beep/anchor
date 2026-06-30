@@ -40,11 +40,13 @@ Return only valid JSON. No preamble, no markdown.`
   }
 }
 
-export default function BibleDashboard({ project, characters, relationships, locations, script, onNavigate, onUpdateRelationship }) {
+export default function BibleDashboard({ project, characters, relationships, locations, script, onNavigate, onUpdateRelationship, pulseCache, setPulseCache, pulseScriptId, setPulseScriptId }) {
   const words = script?.content ? script.content.replace(/\[\w+\]/g,'').split(/\s+/).filter(Boolean).length : 0
-  const [insights, setInsights]           = useState(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState('')
+  // Use cached pulse if available, fall back to local state
+  const insights    = pulseCache || null
+  const setInsights = setPulseCache || (() => {})
 
   // Full Read state
   const [fullRead, setFullRead]           = useState(null)
@@ -54,7 +56,11 @@ export default function BibleDashboard({ project, characters, relationships, loc
   const [confirmingShifts, setConfirmingShifts] = useState({}) // relKey → bool
 
   useEffect(() => {
-    if (characters.length > 0) loadInsights()
+    if (characters.length === 0) return
+    // Run if no cache exists, or if script has changed since last run
+    if (!pulseCache || (script?.id && script.id !== pulseScriptId)) {
+      loadInsights()
+    }
   }, [project.id])
 
   async function loadInsights() {
@@ -64,7 +70,9 @@ export default function BibleDashboard({ project, characters, relationships, loc
       const prompt = buildInsightsPrompt({ project, characters, relationships, script })
       const raw = await callAI(prompt)
       const clean = raw.replace(/```json|```/g, '').trim()
-      setInsights(JSON.parse(clean))
+      const parsed = JSON.parse(clean)
+      setInsights(parsed)
+      if (setPulseScriptId && script?.id) setPulseScriptId(script.id)
     } catch(e) {
       setInsightsError('Insights unavailable')
     }
