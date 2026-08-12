@@ -477,7 +477,7 @@ export default function WritingStudio({
     try {
       const prompt = buildDraftScanPrompt({ scriptText, characters, relationships, relationshipEvents, characterStateEvents })
       const result = await callAI({ ...prompt, schema:DRAFT_SCAN_SCHEMA, maxTokens:5000 })
-      setReview({ kind:'draft', findings:result.findings || [], overall:result.overall || '' })
+      setReview({ kind:'draft', findings:(result.findings || []).slice(0, 5), overall:result.overall || '' })
     } catch (error) { setMessage('Draft scan failed: ' + error.message) }
     setAiBusy('')
   }
@@ -536,7 +536,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.3.5</span>
+          <span className="screenplay-studio-version">Studio 0.3.6</span>
           <input
             className="screenplay-title-input"
             value={title}
@@ -719,7 +719,7 @@ function DraftReview({ review }) {
             </header>
             <h3>{finding.title}</h3>
             <p>{finding.summary}</p>
-            {(finding.evidence || []).map((item, evidenceIndex) => (
+            {(finding.evidence || []).slice(0, 2).map((item, evidenceIndex) => (
               <blockquote className="screenplay-evidence" key={evidenceIndex}>
                 “{item.quote}”
                 {item.location && <cite>{item.location}</cite>}
