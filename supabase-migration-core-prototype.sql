@@ -1,8 +1,7 @@
 -- Anchor existing-project migration
--- 1. Sign in once through the new Anchor login.
--- 2. Replace REPLACE_WITH_YOUR_EMAIL below with that account.
--- 3. Run this entire file in Supabase SQL Editor.
--- The transaction aborts safely if the account cannot be found.
+-- Run this entire file in Supabase SQL Editor before opening the prototype.
+-- Existing projects are deliberately locked when this runs because they do not
+-- have an owner yet. New projects work immediately after a user signs in.
 
 begin;
 
@@ -13,18 +12,7 @@ alter table public.characters add column if not exists physical text not null de
 alter table public.characters add column if not exists life_state text not null default 'alive';
 alter table public.relationships alter column type set default 'stranger';
 
-do $$
-declare anchor_owner uuid;
-begin
-  select id into anchor_owner from auth.users where lower(email) = lower('REPLACE_WITH_YOUR_EMAIL') limit 1;
-  if anchor_owner is null then
-    raise exception 'No matching owner. Sign in first and replace REPLACE_WITH_YOUR_EMAIL.';
-  end if;
-  update public.projects set owner_id = anchor_owner where owner_id is null;
-end $$;
-
 alter table public.projects alter column owner_id set default auth.uid();
-alter table public.projects alter column owner_id set not null;
 alter table public.characters drop constraint if exists characters_life_state_check;
 alter table public.characters add constraint characters_life_state_check check (life_state in ('alive','missing','presumed_dead','deceased','unknown'));
 
@@ -94,3 +82,8 @@ create policy "owners manage scripts" on public.scripts for all to authenticated
 update storage.buckets set public = false where id = 'location-images';
 
 commit;
+
+-- OPTIONAL LEGACY-DATA CLAIM (run only after the intended owner signs in):
+-- Replace the email, uncomment both lines, and run them separately.
+-- update public.projects set owner_id = (select id from auth.users where lower(email) = lower('writer@example.com') limit 1) where owner_id is null;
+-- alter table public.projects alter column owner_id set not null;

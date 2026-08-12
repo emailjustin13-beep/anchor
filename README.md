@@ -17,7 +17,7 @@ Essay/source-citation support and a visual redesign are intentionally deferred.
 
 1. Copy `.env.example` to `.env.local` and fill in the three required values.
 2. For a new Supabase project, run `supabase-schema.sql` in its SQL Editor.
-3. For the existing Anchor database, deploy the app, sign in once, replace the email placeholder in `supabase-migration-core-prototype.sql`, and run that migration in one transaction.
+3. For the existing Anchor database, run `supabase-migration-core-prototype.sql` first. Then sign in and create a test project. Legacy projects remain private and hidden until you run the optional owner-claim statement at the bottom of that file.
 4. Install and start:
 
 ```bash
