@@ -38,6 +38,24 @@ test('temporary AI overloads retry safely and First Read cannot double-submit', 
   assert.match(firstRead, /status\.anthropic\.com/)
 })
 
+test('draft scan is a multi-finding audit distinct from the scene scan', async () => {
+  const [ai, editor] = await Promise.all([
+    read('lib/ai.js'),
+    read('components/editor/WritingStudio.js'),
+  ])
+  assert.match(ai, /DRAFT_SCAN_SCHEMA/)
+  assert.match(ai, /maxItems: 5/)
+  assert.match(ai, /continuity.*character.*relationship.*life_state.*timeline/)
+  assert.match(ai, /Never rewrite, recommend adding a scene, beat, explanation, or internal reaction/)
+  assert.match(ai, /Do not repeat the same underlying issue/)
+  assert.match(editor, /buildDraftScanPrompt/)
+  assert.match(editor, /schema:DRAFT_SCAN_SCHEMA/)
+  assert.match(editor, /findings:result\.findings/)
+  assert.match(editor, /Review only — nothing here changes your Story Bible/)
+  assert.match(editor, /onClick=\{runSceneScan\}/)
+  assert.match(editor, /onClick=\{runDraftScan\}/)
+})
+
 test('Google is the primary sign-in path with email retained as a backup', async () => {
   const auth = await read('components/AuthGate.js')
   assert.match(auth, /signInWithOAuth/)
@@ -56,7 +74,7 @@ test('same-user auth refreshes preserve and restore the open project', async () 
   assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
   assert.match(app, /onSelect=\{openProject\}/)
   assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
-  assert.match(layout, /Editor 0\.3\.4 Clean/)
+  assert.match(layout, /Editor 0\.3\.5 Clean/)
 })
 
 test('every AI workflow uses a closed structured schema with evidence', async () => {

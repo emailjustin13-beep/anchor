@@ -3,7 +3,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import { callAI, buildPressureTestPrompt, buildRelationshipScanPrompt, PRESSURE_TEST_SCHEMA, RELATIONSHIP_SCAN_SCHEMA } from '../../lib/ai'
+import {
+  callAI,
+  buildDraftScanPrompt,
+  buildPressureTestPrompt,
+  buildRelationshipScanPrompt,
+  DRAFT_SCAN_SCHEMA,
+  PRESSURE_TEST_SCHEMA,
+  RELATIONSHIP_SCAN_SCHEMA,
+} from '../../lib/ai'
 import {
   SCREENPLAY_ELEMENTS,
   SCREENPLAY_ELEMENT_ORDER,
@@ -22,6 +30,13 @@ import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
 
 const REL_COLORS = { ally:'#3FB950', rival:'#F85149', romantic:'#DB61A2', family:'#58A6FF', mentor:'#D2A8FF', enemy:'#FF7B72', complicated:'#FFA657', stranger:'#6A6A88' }
+const DRAFT_CATEGORY_LABELS = {
+  continuity:'Continuity',
+  character:'Character',
+  relationship:'Relationship',
+  life_state:'Life state',
+  timeline:'Timeline',
+}
 
 function documentOutline(editor) {
   const scenes = []
@@ -106,6 +121,7 @@ export default function WritingStudio({
   characters,
   relationships,
   relationshipEvents = [],
+  characterStateEvents = [],
   scriptVersions = [],
   onSaveScript,
   onCreateRelationship,
@@ -436,19 +452,33 @@ export default function WritingStudio({
     setAiBusy('')
   }
 
-  async function runScan(scope) {
+  async function runSceneScan() {
     if (!editor || characters.length < 1) return setMessage('Add at least one character first.')
-    const passage = scope === 'scene' ? currentSceneText(editor) : documentToPlainText(editor.getJSON())
+    const passage = currentSceneText(editor)
     if (passage.length < 40) return setMessage('There is not enough writing to scan yet.')
-    setAiBusy(scope === 'scene' ? 'Scanning scene' : 'Scanning draft')
+    setAiBusy('Scanning scene')
     setReview(null)
     try {
       const prompt = buildRelationshipScanPrompt({ scriptChunk:passage, characters, relationships })
       const result = await callAI({ ...prompt, schema:RELATIONSHIP_SCAN_SCHEMA, maxTokens:1800 })
       const charA = characters.find(character => character.name.toLowerCase() === result.character_a?.toLowerCase())
       const charB = characters.find(character => character.name.toLowerCase() === result.character_b?.toLowerCase())
-      setReview({ kind:'scan', scope, ...result, charA, charB })
+      setReview({ kind:'scan', scope:'scene', ...result, charA, charB })
     } catch (error) { setMessage('Scan failed: ' + error.message) }
+    setAiBusy('')
+  }
+
+  async function runDraftScan() {
+    if (!editor || characters.length < 1) return setMessage('Add at least one character first.')
+    const scriptText = documentToPlainText(editor.getJSON())
+    if (scriptText.length < 80) return setMessage('There is not enough writing to scan yet.')
+    setAiBusy('Auditing draft')
+    setReview(null)
+    try {
+      const prompt = buildDraftScanPrompt({ scriptText, characters, relationships, relationshipEvents, characterStateEvents })
+      const result = await callAI({ ...prompt, schema:DRAFT_SCAN_SCHEMA, maxTokens:5000 })
+      setReview({ kind:'draft', findings:result.findings || [], overall:result.overall || '' })
+    } catch (error) { setMessage('Draft scan failed: ' + error.message) }
     setAiBusy('')
   }
 
@@ -506,7 +536,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.3.4</span>
+          <span className="screenplay-studio-version">Studio 0.3.5</span>
           <input
             className="screenplay-title-input"
             value={title}
@@ -545,8 +575,8 @@ export default function WritingStudio({
         <div className="screenplay-review-toolbar no-print">
           <span>{stats.words.toLocaleString()} words · {stats.pages} page{stats.pages === 1 ? '' : 's'}</span>
           <button onClick={runPressureTest} disabled={!!aiBusy || !selectedText(editor)}>Pressure Test</button>
-          <button onClick={() => runScan('scene')} disabled={!!aiBusy}>Scan Scene</button>
-          <button onClick={() => runScan('draft')} disabled={!!aiBusy}>Scan Draft</button>
+          <button onClick={runSceneScan} disabled={!!aiBusy}>Scan Scene</button>
+          <button onClick={runDraftScan} disabled={!!aiBusy}>Scan Draft</button>
           <button onClick={() => setXrayOpen(value => !value)} className={xrayOpen ? 'active' : ''}>X-Ray</button>
           {aiBusy && <b>{aiBusy}…</b>}
         </div>
@@ -613,7 +643,7 @@ export default function WritingStudio({
       )}
 
       {review && (
-        <Modal title={review.kind === 'pressure' ? `Pressure Test · ${review.character?.name}` : 'Story-integrity review'} onClose={() => setReview(null)}>
+        <Modal title={review.kind === 'pressure' ? `Pressure Test · ${review.character?.name}` : review.kind === 'draft' ? 'Draft integrity review' : 'Story-integrity review'} onClose={() => setReview(null)} wide={review.kind === 'draft'}>
           {review.kind === 'pressure' ? (
             <>
               <ReviewVerdict verdict={review.verdict} summary={review.summary} />
@@ -621,6 +651,8 @@ export default function WritingStudio({
               {review.question && <p className="screenplay-question"><b>Question:</b> {review.question}</p>}
               {(review.notes || []).map((note, index) => <p key={index}><b>{note.type}:</b> {note.text}</p>)}
             </>
+          ) : review.kind === 'draft' ? (
+            <DraftReview review={review} />
           ) : review.shift_detected ? (
             <>
               <ReviewVerdict verdict="question" summary={review.summary} />
@@ -666,10 +698,45 @@ export default function WritingStudio({
   )
 }
 
-function Modal({ title, onClose, children }) {
+function DraftReview({ review }) {
+  if (review.findings.length === 0) {
+    return <ReviewVerdict verdict="pass" summary={review.overall || 'No meaningful story-integrity concern was found in this draft.'} />
+  }
+
+  return (
+    <>
+      <div className="screenplay-draft-summary">
+        <b>{review.findings.length} question{review.findings.length === 1 ? '' : 's'} to review</b>
+        <span>{review.overall || 'Anchor compared the complete draft with the confirmed Story Bible.'}</span>
+        <small>Review only — nothing here changes your Story Bible.</small>
+      </div>
+      <div className="screenplay-draft-findings">
+        {review.findings.map((finding, index) => (
+          <article className="screenplay-draft-finding" key={`${finding.category}-${index}`}>
+            <header>
+              <span>{DRAFT_CATEGORY_LABELS[finding.category] || finding.category}</span>
+              <i className={`priority-${finding.priority}`}>{finding.priority}</i>
+            </header>
+            <h3>{finding.title}</h3>
+            <p>{finding.summary}</p>
+            {(finding.evidence || []).map((item, evidenceIndex) => (
+              <blockquote className="screenplay-evidence" key={evidenceIndex}>
+                “{item.quote}”
+                {item.location && <cite>{item.location}</cite>}
+              </blockquote>
+            ))}
+            {finding.question && <p className="screenplay-question"><b>Question:</b> {finding.question}</p>}
+          </article>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function Modal({ title, onClose, children, wide = false }) {
   return (
     <div className="screenplay-modal-backdrop no-print" onMouseDown={onClose}>
-      <section className="screenplay-modal" onMouseDown={event => event.stopPropagation()}>
+      <section className={`screenplay-modal${wide ? ' screenplay-modal-wide' : ''}`} onMouseDown={event => event.stopPropagation()}>
         <header><h2>{title}</h2><button onClick={onClose}>✕</button></header>
         <div>{children}</div>
       </section>
