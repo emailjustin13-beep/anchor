@@ -28,7 +28,7 @@ import {
 } from '../../lib/screenplay'
 import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
-import { findEvidenceRange, findingFingerprint, normalizeFindingText } from '../../lib/draftReview'
+import { findEvidenceRange, findingFingerprint, findingMatchesDecision, normalizeFindingText } from '../../lib/draftReview'
 
 const REL_COLORS = { ally:'#3FB950', rival:'#F85149', romantic:'#DB61A2', family:'#58A6FF', mentor:'#D2A8FF', enemy:'#FF7B72', complicated:'#FFA657', stranger:'#6A6A88' }
 const DRAFT_CATEGORY_LABELS = {
@@ -552,12 +552,15 @@ export default function WritingStudio({
         profile:'draft_scan',
         timeoutMs:50000,
       })
-      const findings = (result.findings || []).slice(0, 5).map(finding => ({
-        ...finding,
-        possibilities:(finding.possibilities || []).slice(0, 2),
-        evidence:(finding.evidence || []).slice(0, 2),
-        fingerprint:findingFingerprint(finding),
-      }))
+      const findings = (result.findings || [])
+        .filter(finding => !activeDecisions.some(decision => findingMatchesDecision(finding, decision)))
+        .slice(0, 5)
+        .map(finding => ({
+          ...finding,
+          possibilities:(finding.possibilities || []).slice(0, 2),
+          evidence:(finding.evidence || []).slice(0, 2),
+          fingerprint:findingFingerprint(finding),
+        }))
       setReview({ kind:'draft', findings, overall:result.overall || '' })
     } catch (error) { setMessage('Draft scan failed: ' + error.message) }
     setAiBusy('')
@@ -630,7 +633,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.3.9</span>
+          <span className="screenplay-studio-version">Studio 0.3.10</span>
           <input
             className="screenplay-title-input"
             value={title}

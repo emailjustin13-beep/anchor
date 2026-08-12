@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { findEvidenceRange, findingFingerprint } from '../lib/draftReview.js'
+import { findEvidenceRange, findingFingerprint, findingMatchesDecision } from '../lib/draftReview.js'
 
 function paragraph(textContent, elementType = 'action') {
   return {
@@ -59,4 +59,24 @@ test('finding decisions remain stable when only AI wording changes', () => {
   const rerun = findingFingerprint({ category:'continuity', title:'The locked locker', evidence:[...evidence].reverse() })
   assert.equal(first, rerun)
   assert.notEqual(first, findingFingerprint({ category:'timeline', title:'The locked locker', evidence }))
+})
+
+test('reviewed issues stay dismissed when the AI changes wording or category', () => {
+  const decision = {
+    fingerprint:'life_state:old',
+    category:'life_state',
+    evidence:[{ quote:'Director Nora Chen has failed to check in. Current status: missing.' }],
+  }
+  const rerun = {
+    category:'timeline',
+    evidence:[
+      { quote:'Director Nora Chen has failed to check in. Current status: missing.' },
+      { quote:'Nora appears inside the archive hallway. Alive.' },
+    ],
+  }
+  assert.equal(findingMatchesDecision(rerun, decision), true)
+  assert.equal(findingMatchesDecision({
+    category:'relationship',
+    evidence:rerun.evidence,
+  }, decision), false)
 })

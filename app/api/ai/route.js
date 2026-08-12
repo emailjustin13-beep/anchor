@@ -80,6 +80,18 @@ function completeMessageText(data) {
   return messageText(data)
 }
 
+function bodyForModel(body, model) {
+  const next = { ...body, model }
+  if (model.includes('haiku')) {
+    delete next.thinking
+    if (next.output_config?.effort) {
+      next.output_config = { ...next.output_config }
+      delete next.output_config.effort
+    }
+  }
+  return next
+}
+
 async function readSuccessfulMessage(response) {
   return response.ok ? response.json().catch(() => ({})) : null
 }
@@ -97,7 +109,7 @@ async function requestAnthropicMessage(key, body, deadline) {
   if (data.stop_reason === 'refusal') {
     const fallbackModel = process.env.ANTHROPIC_FALLBACK_MODEL || 'claude-haiku-4-5-20251001'
     if (fallbackModel !== body.model) {
-      response = await requestAnthropic(key, { ...body, model:fallbackModel }, deadline, 1)
+      response = await requestAnthropic(key, bodyForModel(body, fallbackModel), deadline, 1)
       data = await readSuccessfulMessage(response)
       return { response, data, text:completeMessageText(data) }
     }
@@ -173,15 +185,21 @@ export async function POST(request) {
     const isDraftScan = profile === 'draft_scan'
     const body = {
       model: isDraftScan
-        ? process.env.ANTHROPIC_DRAFT_SCAN_MODEL || 'claude-haiku-4-5-20251001'
+        ? process.env.ANTHROPIC_DRAFT_SCAN_MODEL || 'claude-sonnet-5'
         : process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
       max_tokens: tokenBudget,
       system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
     }
 
+    if (isDraftScan && body.model.includes('claude-sonnet-5')) {
+      body.thinking = { type:'disabled' }
+      body.output_config = { effort:'medium' }
+    }
+
     if (schema) {
       body.output_config = {
+        ...body.output_config,
         format: { type: 'json_schema', schema },
       }
     }
