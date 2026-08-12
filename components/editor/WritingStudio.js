@@ -34,6 +34,7 @@ import {
   canReuseIssueLedger,
   diffStoryMemory,
   emptyIssueLedger,
+  ISSUE_LEDGER_VERSION,
   issueLedgerReview,
   mergeIssueLedger,
   setIssueLedgerStatus,
@@ -197,7 +198,7 @@ export default function WritingStudio({
       const savedLedger = JSON.parse(localStorage.getItem(issueLedgerKey) || 'null')
       const legacyDecisions = JSON.parse(localStorage.getItem(draftDecisionKey) || '[]')
       legacyDecisionsRef.current = Array.isArray(legacyDecisions) ? legacyDecisions : []
-      setDraftIssueLedger(savedLedger?.issues ? savedLedger : emptyIssueLedger())
+      setDraftIssueLedger(savedLedger?.version === ISSUE_LEDGER_VERSION ? savedLedger : emptyIssueLedger())
     } catch {
       legacyDecisionsRef.current = []
       setDraftIssueLedger(emptyIssueLedger())
@@ -713,7 +714,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.4.0</span>
+          <span className="screenplay-studio-version">Studio 0.4.1</span>
           <input
             className="screenplay-title-input"
             value={title}

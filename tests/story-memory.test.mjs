@@ -105,7 +105,7 @@ test('an issue resolves when its supporting evidence is removed', () => {
   assert.equal(revised.issues[0].status, 'resolved')
 })
 
-test('materially changed evidence can reopen a dismissed issue without changing its wording', () => {
+test('materially changed evidence reopens a dismissed issue with current wording', () => {
   const memory = buildStoryMemory(legacyToDocument(firstDraft))
   const initial = mergeIssueLedger({
     previousLedger:emptyIssueLedger(),
@@ -132,6 +132,39 @@ test('materially changed evidence can reopen a dismissed issue without changing 
     draftText:revisedDraft,
   })
   assert.equal(revised.issues[0].status, 'open')
-  assert.equal(revised.issues[0].title, keyFinding.title)
+  assert.equal(revised.issues[0].title, revisedFinding.title)
   assert.equal(revised.issues[0].evidence[0].quote, 'There is no duplicate key.')
+})
+
+test('scratched keyhole evidence can resolve the old no-damage issue even when dismissed', () => {
+  const memory = buildStoryMemory(legacyToDocument(firstDraft))
+  const initial = mergeIssueLedger({
+    previousLedger:emptyIssueLedger(),
+    scanResult:{ findings:[keyFinding], resolved_issue_ids:[], overall:'Initial review.' },
+    memory,
+    draftText:firstDraft,
+  })
+  const dismissed = setIssueLedgerStatus(initial, initial.issues[0].id, 'dismissed')
+  const revisedDraft = firstDraft.replace(
+    'There is no visible damage.',
+    'Omar examines it. Scratches run along the keyhole.'
+  )
+  const revisedMemory = buildStoryMemory(legacyToDocument(revisedDraft))
+  assert.ok(revisedMemory.scenes[1].facts.some(fact =>
+    fact.quote.includes('Scratches') && fact.kinds.includes('condition') && fact.kinds.includes('access')
+  ))
+
+  const revised = mergeIssueLedger({
+    previousLedger:dismissed,
+    scanResult:{
+      findings:[],
+      resolved_issue_ids:[initial.issues[0].id],
+      overall:'The scratches provide a plausible alternate access mechanism.',
+    },
+    memory:revisedMemory,
+    draftText:revisedDraft,
+  })
+
+  assert.equal(revised.issues[0].status, 'resolved')
+  assert.equal(revised.issues[0].resolvedAt !== null, true)
 })

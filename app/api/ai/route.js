@@ -185,14 +185,14 @@ export async function POST(request) {
     const isDraftScan = profile === 'draft_scan'
     const body = {
       model: isDraftScan
-        ? process.env.ANTHROPIC_DRAFT_SCAN_MODEL || 'claude-sonnet-5'
+        ? process.env.ANTHROPIC_DRAFT_SCAN_MODEL || 'claude-opus-5'
         : process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
       max_tokens: tokenBudget,
       system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
     }
 
-    if (isDraftScan && body.model.includes('claude-sonnet-5')) {
+    if (isDraftScan && /claude-(?:sonnet|opus)-5/.test(body.model)) {
       body.thinking = { type:'disabled' }
       body.output_config = { effort:'medium' }
     }
