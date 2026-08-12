@@ -28,7 +28,7 @@ test('temporary AI overloads retry safely and First Read cannot double-submit', 
     read('components/bible/FirstRead.js'),
   ])
   assert.match(route, /transientAIStatuses/)
-  assert.match(route, /maxAIAttempts = 3/)
+  assert.match(route, /maxAIAttempts = 2/)
   assert.match(route, /retry-after/)
   assert.match(route, /AI_OVERLOADED/)
   assert.match(route, /Your screenplay is safe/)
@@ -36,6 +36,22 @@ test('temporary AI overloads retry safely and First Read cannot double-submit', 
   assert.match(firstRead, /requestInFlight/)
   assert.match(firstRead, /wordCount < 25/)
   assert.match(firstRead, /status\.anthropic\.com/)
+})
+
+test('draft scans use a fast bounded request path with visible elapsed time', async () => {
+  const [client, route, editor] = await Promise.all([
+    read('lib/ai.js'),
+    read('app/api/ai/route.js'),
+    read('components/editor/WritingStudio.js'),
+  ])
+  assert.match(route, /draft_scan:45000/)
+  assert.match(route, /ANTHROPIC_DRAFT_SCAN_MODEL/)
+  assert.match(route, /claude-haiku-4-5-20251001/)
+  assert.match(route, /AI_TIMEOUT/)
+  assert.match(client, /controller\.abort/)
+  assert.match(editor, /profile:'draft_scan'/)
+  assert.match(editor, /maxTokens:3200/)
+  assert.match(editor, /aiElapsed/)
 })
 
 test('successful HTTP responses are checked for empty, truncated, and refused generations', async () => {
@@ -95,7 +111,7 @@ test('same-user auth refreshes preserve and restore the open project', async () 
   assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
   assert.match(app, /onSelect=\{openProject\}/)
   assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
-  assert.match(layout, /Editor 0\.3\.8 Clean/)
+  assert.match(layout, /Editor 0\.3\.9 Clean/)
 })
 
 test('every AI workflow uses a closed structured schema with evidence', async () => {

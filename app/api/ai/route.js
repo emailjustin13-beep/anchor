@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 
 const requestWindows = new Map()
 const transientAIStatuses = new Set([429, 500, 502, 503, 504, 529])
-const maxAIAttempts = 3
+const maxAIAttempts = 2
+const aiDeadlines = { standard:55000, draft_scan:45000 }
+
+export const maxDuration = 60
 
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
 
@@ -10,20 +13,37 @@ function retryDelay(response, attempt) {
   const retryAfter = response?.headers.get('retry-after')
   if (retryAfter) {
     const seconds = Number(retryAfter)
-    if (Number.isFinite(seconds)) return Math.min(seconds * 1000, 5000)
+    if (Number.isFinite(seconds)) return Math.min(seconds * 1000, 1500)
 
     const retryDate = Date.parse(retryAfter)
-    if (!Number.isNaN(retryDate)) return Math.min(Math.max(retryDate - Date.now(), 0), 5000)
+    if (!Number.isNaN(retryDate)) return Math.min(Math.max(retryDate - Date.now(), 0), 1500)
   }
 
-  return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5000)
+  return Math.min(500 * (2 ** attempt) + Math.floor(Math.random() * 150), 1500)
 }
 
-async function requestAnthropic(key, body) {
+function aiTimeoutError() {
+  const error = new Error('Anchor AI exceeded its response deadline.')
+  error.code = 'AI_TIMEOUT'
+  return error
+}
+
+async function waitForRetry(response, attempt, deadline) {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw aiTimeoutError()
+  await wait(Math.min(retryDelay(response, attempt), remaining))
+  if (Date.now() >= deadline) throw aiTimeoutError()
+}
+
+async function requestAnthropic(key, body, deadline, attempts = maxAIAttempts) {
   const requestBody = JSON.stringify(body)
   let lastNetworkError
 
-  for (let attempt = 0; attempt < maxAIAttempts; attempt += 1) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) throw aiTimeoutError()
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), remaining)
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -33,15 +53,18 @@ async function requestAnthropic(key, body) {
           'content-type':      'application/json',
         },
         body: requestBody,
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
 
-      const shouldRetry = transientAIStatuses.has(response.status) && attempt < maxAIAttempts - 1
+      const shouldRetry = transientAIStatuses.has(response.status) && attempt < attempts - 1
       if (!shouldRetry) return response
-      await wait(retryDelay(response, attempt))
+      await waitForRetry(response, attempt, deadline)
     } catch (error) {
-      lastNetworkError = error
-      if (attempt === maxAIAttempts - 1) throw error
-      await wait(retryDelay(null, attempt))
+      clearTimeout(timeout)
+      lastNetworkError = controller.signal.aborted ? aiTimeoutError() : error
+      if (controller.signal.aborted || attempt === attempts - 1) throw lastNetworkError
+      await waitForRetry(null, attempt, deadline)
     }
   }
 
@@ -61,8 +84,8 @@ async function readSuccessfulMessage(response) {
   return response.ok ? response.json().catch(() => ({})) : null
 }
 
-async function requestAnthropicMessage(key, body) {
-  let response = await requestAnthropic(key, body)
+async function requestAnthropicMessage(key, body, deadline) {
+  let response = await requestAnthropic(key, body, deadline)
   let data = await readSuccessfulMessage(response)
   if (!response.ok) return { response, data, text:'' }
 
@@ -74,21 +97,21 @@ async function requestAnthropicMessage(key, body) {
   if (data.stop_reason === 'refusal') {
     const fallbackModel = process.env.ANTHROPIC_FALLBACK_MODEL || 'claude-haiku-4-5-20251001'
     if (fallbackModel !== body.model) {
-      response = await requestAnthropic(key, { ...body, model:fallbackModel })
+      response = await requestAnthropic(key, { ...body, model:fallbackModel }, deadline, 1)
       data = await readSuccessfulMessage(response)
       return { response, data, text:completeMessageText(data) }
     }
   }
 
   if (data.stop_reason === 'max_tokens' && body.max_tokens < 10000) {
-    response = await requestAnthropic(key, { ...body, max_tokens:Math.min(body.max_tokens * 2, 10000) })
+    response = await requestAnthropic(key, { ...body, max_tokens:Math.min(body.max_tokens * 2, 10000) }, deadline, 1)
     data = await readSuccessfulMessage(response)
     return { response, data, text:completeMessageText(data) }
   }
 
   if (!completeText && !['refusal', 'model_context_window_exceeded'].includes(data.stop_reason)) {
-    await wait(500)
-    response = await requestAnthropic(key, body)
+    await waitForRetry(null, 0, deadline)
+    response = await requestAnthropic(key, body, deadline, 1)
     data = await readSuccessfulMessage(response)
     return { response, data, text:completeMessageText(data) }
   }
@@ -124,7 +147,7 @@ export async function POST(request) {
     if (!user?.id) return NextResponse.json({ error: 'Sign in to use Anchor AI.' }, { status: 401 })
     if (!withinRateLimit(user.id)) return NextResponse.json({ error: 'Too many scans. Wait a moment and try again.' }, { status: 429 })
 
-    const { prompt, systemPrompt, schema, maxTokens } = await request.json()
+    const { prompt, systemPrompt, schema, maxTokens, profile = 'standard' } = await request.json()
     const key = process.env.ANTHROPIC_API_KEY
 
     if (!key) {
@@ -142,9 +165,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid AI instructions.' }, { status: 400 })
     }
 
+    if (!Object.hasOwn(aiDeadlines, profile)) {
+      return NextResponse.json({ error: 'Invalid AI request profile.' }, { status: 400 })
+    }
+
     const tokenBudget = Math.min(Math.max(Number(maxTokens) || 2000, 256), 10000)
+    const isDraftScan = profile === 'draft_scan'
     const body = {
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+      model: isDraftScan
+        ? process.env.ANTHROPIC_DRAFT_SCAN_MODEL || 'claude-haiku-4-5-20251001'
+        : process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
       max_tokens: tokenBudget,
       system: systemPrompt,
       messages: [{ role: 'user', content: prompt }],
@@ -156,7 +186,8 @@ export async function POST(request) {
       }
     }
 
-    const message = await requestAnthropicMessage(key, body)
+    const deadline = Date.now() + aiDeadlines[profile]
+    const message = await requestAnthropicMessage(key, body, deadline)
     const { response } = message
 
     if (!response.ok) {
@@ -234,6 +265,16 @@ export async function POST(request) {
     return NextResponse.json({ result: text })
 
   } catch (err) {
+    if (err?.code === 'AI_TIMEOUT') {
+      return NextResponse.json(
+        {
+          error: 'This scan took longer than 45 seconds and was stopped. Your screenplay is safe. Please try again.',
+          code: 'AI_TIMEOUT',
+          retryable: true,
+        },
+        { status: 504 }
+      )
+    }
     return NextResponse.json(
       {
         error: 'Anchor AI could not be reached. Your screenplay is safe. Wait a moment and try again.',

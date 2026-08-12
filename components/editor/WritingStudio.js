@@ -150,6 +150,7 @@ export default function WritingStudio({
   const [showFirstRead, setShowFirstRead] = useState(false)
   const [firstReadDismissed, setFirstReadDismissed] = useState(false)
   const [aiBusy, setAiBusy] = useState('')
+  const [aiElapsed, setAiElapsed] = useState(0)
   const [review, setReview] = useState(null)
   const [message, setMessage] = useState('')
   const [draftFindingDecisions, setDraftFindingDecisions] = useState([])
@@ -167,6 +168,15 @@ export default function WritingStudio({
   useEffect(() => { titleRef.current = title }, [title])
   useEffect(() => { titlePageRef.current = titlePage }, [titlePage])
   useEffect(() => { saveFnRef.current = onSaveScript }, [onSaveScript])
+  useEffect(() => {
+    if (!aiBusy) {
+      setAiElapsed(0)
+      return undefined
+    }
+    const startedAt = Date.now()
+    const timer = setInterval(() => setAiElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [aiBusy])
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(draftDecisionKey) || '[]')
@@ -535,7 +545,13 @@ export default function WritingStudio({
         characterStateEvents,
         dismissedFindings:activeDecisions,
       })
-      const result = await callAI({ ...prompt, schema:DRAFT_SCAN_SCHEMA, maxTokens:5000 })
+      const result = await callAI({
+        ...prompt,
+        schema:DRAFT_SCAN_SCHEMA,
+        maxTokens:3200,
+        profile:'draft_scan',
+        timeoutMs:50000,
+      })
       const findings = (result.findings || []).slice(0, 5).map(finding => ({
         ...finding,
         possibilities:(finding.possibilities || []).slice(0, 2),
@@ -614,7 +630,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.3.8</span>
+          <span className="screenplay-studio-version">Studio 0.3.9</span>
           <input
             className="screenplay-title-input"
             value={title}
@@ -656,7 +672,7 @@ export default function WritingStudio({
           <button onClick={runSceneScan} disabled={!!aiBusy}>Scan Scene</button>
           <button onClick={runDraftScan} disabled={!!aiBusy}>Scan Draft</button>
           <button onClick={() => setXrayOpen(value => !value)} className={xrayOpen ? 'active' : ''}>X-Ray</button>
-          {aiBusy && <b>{aiBusy}…</b>}
+          {aiBusy && <b>{aiBusy}{aiElapsed ? ` · ${aiElapsed}s` : ''}…</b>}
         </div>
 
         {searchOpen && (
