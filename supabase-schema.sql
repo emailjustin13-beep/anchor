@@ -97,8 +97,22 @@ create table if not exists public.scripts (
   project_id uuid not null references public.projects(id) on delete cascade,
   title text not null default 'Untitled',
   content text not null default '',
+  content_json jsonb,
+  title_page jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.script_versions (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  script_id uuid not null references public.scripts(id) on delete cascade,
+  label text not null,
+  title text not null default 'Untitled',
+  content text not null default '',
+  content_json jsonb,
+  title_page jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
 );
 
 create index if not exists characters_project_idx on public.characters(project_id);
@@ -107,6 +121,7 @@ create index if not exists relationship_events_order_idx on public.relationship_
 create index if not exists character_state_events_order_idx on public.character_state_events(project_id, sequence_index);
 create index if not exists locations_project_idx on public.locations(project_id);
 create index if not exists scripts_project_idx on public.scripts(project_id);
+create index if not exists script_versions_script_idx on public.script_versions(script_id, created_at desc);
 
 create or replace function public.set_updated_at()
 returns trigger language plpgsql set search_path = public as $$
@@ -139,6 +154,7 @@ alter table public.relationship_events enable row level security;
 alter table public.character_state_events enable row level security;
 alter table public.locations enable row level security;
 alter table public.scripts enable row level security;
+alter table public.script_versions enable row level security;
 
 create policy "owners read projects" on public.projects for select to authenticated using (owner_id = auth.uid());
 create policy "owners create projects" on public.projects for insert to authenticated with check (owner_id = auth.uid());
@@ -150,6 +166,7 @@ create policy "owners manage relationship events" on public.relationship_events 
 create policy "owners manage character state events" on public.character_state_events for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
 create policy "owners manage locations" on public.locations for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
 create policy "owners manage scripts" on public.scripts for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
+create policy "owners manage script versions" on public.script_versions for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
 
 insert into storage.buckets (id, name, public) values ('location-images', 'location-images', false)
 on conflict (id) do update set public = false;

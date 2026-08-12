@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import BibleDashboard    from './bible/BibleDashboard'
 import CharactersModule  from './bible/CharactersModule'
@@ -20,27 +20,34 @@ export default function Shell({ project, onExit, onSignOut }) {
   const [relationshipEvents, setRelationshipEvents] = useState([])
   const [characterStateEvents, setCharacterStateEvents] = useState([])
   const [script, setScript]           = useState(null)
+  const [scriptVersions, setScriptVersions] = useState([])
   const [loading, setLoading]         = useState(true)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [pulseCache, setPulseCache]   = useState(null)  // cached Story Pulse result
   const [pulseScriptId, setPulseScriptId] = useState(null) // script id when pulse was last run
+  const scriptRef = useRef(null)
+
+  useEffect(() => { scriptRef.current = script }, [script])
 
   useEffect(() => { loadAll() }, [project.id])
 
   async function loadAll() {
     setLoading(true)
-    const [chars, rels, relEvents, stateEvents, scr] = await Promise.all([
+    const [chars, rels, relEvents, stateEvents, scr, versions] = await Promise.all([
       supabase.from('characters').select('*').eq('project_id', project.id).order('created_at'),
       supabase.from('relationships').select('*').eq('project_id', project.id),
       supabase.from('relationship_events').select('*').eq('project_id', project.id).order('sequence_index'),
       supabase.from('character_state_events').select('*').eq('project_id', project.id).order('sequence_index'),
       supabase.from('scripts').select('*').eq('project_id', project.id).order('created_at').limit(1).maybeSingle(),
+      supabase.from('script_versions').select('*').eq('project_id', project.id).order('created_at', { ascending:false }),
     ])
     setCharacters(chars.data || [])
     setRels(rels.data || [])
     setRelationshipEvents(relEvents.data || [])
     setCharacterStateEvents(stateEvents.data || [])
     setScript(scr.data || null)
+    scriptRef.current = scr.data || null
+    setScriptVersions(versions.data || [])
     setLoading(false)
     if (project.onboarded === false) setShowOnboarding(true)
   }
@@ -109,16 +116,52 @@ export default function Shell({ project, onExit, onSignOut }) {
   }
 
   // ── Script actions ─────────────────────────────────────────
-  async function saveScript(content, title) {
-    if (script) {
-      const { data } = await supabase.from('scripts').update({ content, title }).eq('id', script.id).select().single()
-      if (data) setScript(data)
-    } else {
-      const { data } = await supabase.from('scripts')
-        .insert({ project_id: project.id, title: title || project.title, content })
-        .select().single()
-      if (data) setScript(data)
+  async function saveScript(content, title, metadata = {}) {
+    const activeScript = scriptRef.current
+    const payload = {
+      content,
+      title:title || project.title,
+      content_json:metadata.contentJson || null,
+      title_page:metadata.titlePage || {},
     }
+    if (activeScript) {
+      const { data, error } = await supabase.from('scripts').update(payload).eq('id', activeScript.id).select().single()
+      if (error) throw error
+      if (data) {
+        scriptRef.current = data
+        setScript(data)
+      }
+      return data
+    } else {
+      const { data, error } = await supabase.from('scripts')
+        .insert({ project_id: project.id, ...payload })
+        .select().single()
+      if (error) throw error
+      if (data) {
+        scriptRef.current = data
+        setScript(data)
+      }
+      return data
+    }
+  }
+
+  async function createScriptVersion(version) {
+    let activeScript = scriptRef.current
+    if (!activeScript) {
+      activeScript = await saveScript(version.content, version.title, {
+        contentJson:version.content_json,
+        titlePage:version.title_page,
+      })
+    }
+    if (!activeScript) throw new Error('Save the screenplay before creating a version.')
+    const { data, error } = await supabase.from('script_versions').insert({
+      project_id:project.id,
+      script_id:activeScript.id,
+      ...version,
+    }).select().single()
+    if (error) throw error
+    setScriptVersions(items => [data, ...items])
+    return data
   }
 
   async function completeOnboarding() {
@@ -126,7 +169,7 @@ export default function Shell({ project, onExit, onSignOut }) {
     await supabase.from('projects').update({ onboarded: true }).eq('id', project.id)
   }
 
-  const shared  = { project, characters, relationships, relationshipEvents, characterStateEvents, script }
+  const shared  = { project, characters, relationships, relationshipEvents, characterStateEvents, script, scriptVersions }
   const charOps = { onCreateCharacter: createCharacter, onUpdateCharacter: updateCharacter, onDeleteCharacter: deleteCharacter }
   const relOps  = { onCreateRelationship: createRelationship, onUpdateRelationship: updateRelationship, onDeleteRelationship: deleteRelationship }
 
@@ -170,7 +213,7 @@ export default function Shell({ project, onExit, onSignOut }) {
             {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onNavigate={setModule} pulseCache={pulseCache} setPulseCache={setPulseCache} pulseScriptId={pulseScriptId} setPulseScriptId={setPulseScriptId} />}
             {module === 'characters' && <CharactersModule  {...shared} {...charOps} />}
             {module === 'ties'       && <TiesThatBind      {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onDeleteRelationshipEvent={deleteRelationshipEvent} />}
-            {module === 'write'      && <WritingEditor     {...shared} onSaveScript={saveScript} onCreateRelationship={createRelationship} onUpdateRelationship={updateRelationship} onCreateRelationshipEvent={createRelationshipEvent} onReload={loadAll} />}
+            {module === 'write'      && <WritingEditor     {...shared} onSaveScript={saveScript} onCreateScriptVersion={createScriptVersion} onCreateRelationship={createRelationship} onUpdateRelationship={updateRelationship} onCreateRelationshipEvent={createRelationshipEvent} onReload={loadAll} />}
           </>
         )}
       </main>

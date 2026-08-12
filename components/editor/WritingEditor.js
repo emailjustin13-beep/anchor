@@ -1,448 +1,490 @@
 'use client'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { EditorContent, useEditor } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
 import { callAI, buildPressureTestPrompt, buildRelationshipScanPrompt, PRESSURE_TEST_SCHEMA, RELATIONSHIP_SCAN_SCHEMA } from '../../lib/ai'
+import {
+  SCREENPLAY_ELEMENTS,
+  SCREENPLAY_ELEMENT_ORDER,
+  countWords,
+  documentToFdx,
+  documentToLegacy,
+  documentToPlainText,
+  downloadTextFile,
+  estimateScreenplayPages,
+  fdxToDocument,
+  legacyToDocument,
+  safeFilename,
+  titlePageFromFdx,
+} from '../../lib/screenplay'
 import FirstRead from '../bible/FirstRead'
+import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
 
-// ── Block types ────────────────────────────────────────────────
-const BLOCKS = {
-  scene:         { label: 'Scene Heading', hint: 'INT. LOCATION — DAY',      upper: true,  shortcut: 'Ctrl+1' },
-  action:        { label: 'Action',        hint: 'Describe what we see…',    upper: false, shortcut: 'Ctrl+2' },
-  character:     { label: 'Character',     hint: 'CHARACTER NAME',            upper: true,  shortcut: 'Ctrl+3' },
-  dialogue:      { label: 'Dialogue',      hint: 'What they say…',           upper: false, shortcut: 'Ctrl+4' },
-  parenthetical: { label: 'Parenthetical', hint: '(beat)',                    upper: false, shortcut: 'Ctrl+5' },
-  transition:    { label: 'Transition',    hint: 'CUT TO:',                   upper: true,  shortcut: 'Ctrl+6' },
-  shot:          { label: 'Shot',          hint: 'CLOSE ON — DETAIL',         upper: true,  shortcut: 'Ctrl+7' },
-  text:          { label: 'Text',          hint: 'General text or notes…',    upper: false, shortcut: 'Ctrl+8' },
-}
-const TAB_CYCLE    = Object.keys(BLOCKS)
-const SHORTCUT_MAP = { '1':'scene','2':'action','3':'character','4':'dialogue','5':'parenthetical','6':'transition','7':'shot','8':'text' }
+const REL_COLORS = { ally:'#3FB950', rival:'#F85149', romantic:'#DB61A2', family:'#58A6FF', mentor:'#D2A8FF', enemy:'#FF7B72', complicated:'#FFA657', stranger:'#6A6A88' }
 
-const BLOCK_LINES = { scene:2, action:1.5, character:1, dialogue:1.2, parenthetical:1, transition:1, shot:1, text:1 }
-const LINES_PER_PAGE = 54
-
-function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toString(36) }
-function makeBlock(type='action', text='') { return { id: uid(), type, text } }
-function smartNext(type) {
-  if (type === 'character' || type === 'parenthetical') return 'dialogue'
-  if (type === 'dialogue') return 'character'
-  return 'action'
-}
-
-function serialize(blocks)   { return blocks.map(b => `[${b.type}]${b.text}`).join('\n') }
-function deserialize(content) {
-  if (!content) return [makeBlock('scene')]
-  if (!content.includes('[')) return [makeBlock('action', content)]
-  return content.split('\n').map(line => {
-    const m = line.match(/^\[(\w+)\](.*)$/)
-    return m && BLOCKS[m[1]] ? makeBlock(m[1], m[2]) : makeBlock('action', line)
+function documentOutline(editor) {
+  const scenes = []
+  if (!editor) return scenes
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'screenplayParagraph' && node.attrs.elementType === 'scene' && node.textContent.trim()) {
+      scenes.push({ number: scenes.length + 1, label: node.textContent.trim().toUpperCase(), pos })
+    }
   })
+  return scenes
 }
 
-function estimateLines(block) {
-  const textLines = block.text ? Math.max(1, Math.ceil(block.text.length / 60)) : 1
-  return (BLOCK_LINES[block.type] || 1) * textLines
-}
-
-function paginateBlocks(blocks) {
-  const pages = []
-  let current = []
-  let lineCount = 0
-  for (const block of blocks) {
-    const lines = estimateLines(block)
-    if (lineCount + lines > LINES_PER_PAGE && current.length > 0) {
-      pages.push(current)
-      current = []
-      lineCount = 0
-    }
-    current.push(block)
-    lineCount += lines
-  }
-  if (current.length > 0) pages.push(current)
-  return pages.length > 0 ? pages : [[]]
-}
-
-function getBlockCSS(type) {
-  const base = {
-    fontFamily: "'Courier Prime', 'Courier New', monospace",
-    fontSize: '13px', lineHeight: '1.8', color: '#111',
-    outline: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-    minHeight: '1.8em', width: '100%', display: 'block', cursor: 'text',
-  }
-  switch (type) {
-    case 'scene':         return { ...base, fontWeight:'700', marginTop:'22px', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'.02em' }
-    case 'action':        return { ...base, marginBottom:'8px' }
-    case 'character':     return { ...base, fontWeight:'700', marginTop:'16px', marginBottom:'0', marginLeft:'37%', width:'26%', textTransform:'uppercase' }
-    case 'dialogue':      return { ...base, marginLeft:'22%', width:'56%', marginBottom:'4px' }
-    case 'parenthetical': return { ...base, marginLeft:'30%', width:'40%', fontStyle:'italic' }
-    case 'transition':    return { ...base, textAlign:'right', fontWeight:'700', marginTop:'12px', textTransform:'uppercase' }
-    case 'shot':          return { ...base, fontWeight:'700', marginTop:'14px', marginBottom:'2px', textTransform:'uppercase', letterSpacing:'.01em' }
-    case 'text':          return { ...base, marginBottom:'6px', color:'#444', fontStyle:'italic' }
-    default:              return base
+function currentParagraph(editor) {
+  if (!editor) return { type:'action', text:'', from:0, to:0 }
+  const { $from } = editor.state.selection
+  return {
+    type: $from.parent.attrs.elementType || 'action',
+    text: $from.parent.textContent,
+    from: $from.start(),
+    to: $from.end(),
   }
 }
 
-function getSelectedText() {
-  const sel = window.getSelection()
-  if (!sel || sel.isCollapsed) return ''
-  return sel.toString().trim()
+function selectedText(editor) {
+  if (!editor) return ''
+  const { from, to } = editor.state.selection
+  return from === to ? '' : editor.state.doc.textBetween(from, to, '\n').trim()
 }
 
-// Get all selected block ids from the DOM selection
-function getSelectedBlockIds(sel, refs) {
-  if (!sel || sel.isCollapsed) return []
-  const ids = []
-  for (const [id, el] of Object.entries(refs.current)) {
-    if (!el) continue
-    if (sel.containsNode(el, true)) ids.push(id)
+function currentSceneText(editor) {
+  if (!editor) return ''
+  const cursor = editor.state.selection.from
+  let start = 0
+  let end = editor.state.doc.content.size
+  const headings = []
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'screenplayParagraph' && node.attrs.elementType === 'scene') headings.push(pos)
+  })
+  for (const pos of headings) {
+    if (pos <= cursor) start = pos
+    else { end = pos; break }
   }
-  return ids
+  return editor.state.doc.textBetween(start, end, '\n').trim()
 }
 
-function detectCharsInScene(blocks, characters) {
-  const text = blocks.map(b => b.text.toUpperCase()).join(' ')
-  return characters.filter(c => c.name && text.includes(c.name.toUpperCase()))
+function suggestionsFor(type, query, characters, scenes) {
+  const value = query.trim().toUpperCase()
+  if (type === 'character') {
+    const names = characters.flatMap(character => [
+      character.name,
+      `${character.name} (V.O.)`,
+      `${character.name} (O.S.)`,
+      `${character.name} (CONT’D)`,
+    ])
+    return names.filter(name => !value || name.toUpperCase().startsWith(value)).slice(0, 8)
+  }
+  if (type === 'scene') {
+    const defaults = ['INT. ', 'EXT. ', 'INT./EXT. ']
+    const previous = scenes.map(scene => scene.label)
+    return [...new Set([...defaults, ...previous])].filter(item => !value || item.startsWith(value)).slice(0, 8)
+  }
+  if (type === 'parenthetical') {
+    return ['(beat)', '(quietly)', '(whispering)', '(to himself)', '(CONT’D)'].filter(item => !value || item.toUpperCase().includes(value)).slice(0, 8)
+  }
+  return []
 }
 
-function currentSceneBlocks(blocks, focusId) {
-  if (!blocks.length) return []
-  const focusedIndex = Math.max(0, blocks.findIndex(block => block.id === focusId))
-  let start = focusedIndex
-  while (start > 0 && blocks[start].type !== 'scene') start -= 1
-  let end = focusedIndex + 1
-  while (end < blocks.length && blocks[end].type !== 'scene') end += 1
-  return blocks.slice(start, end)
+function findCharacterBeforeSelection(editor, characters) {
+  if (!editor) return characters[0]
+  const cursor = editor.state.selection.from
+  let name = ''
+  editor.state.doc.descendants((node, pos) => {
+    if (pos >= cursor) return false
+    if (node.type.name === 'screenplayParagraph' && node.attrs.elementType === 'character') name = node.textContent.replace(/\s*\(.+\)\s*$/, '').trim()
+  })
+  return characters.find(character => character.name.toLowerCase() === name.toLowerCase()) || characters[0]
 }
 
-const VERDICT_STYLE = {
-  pass:     { color:'#3FB950', bg:'rgba(63,185,80,.08)',  border:'rgba(63,185,80,.2)',  icon:'✓', label:'In voice'         },
-  question: { color:'#FFA657', bg:'rgba(255,166,87,.08)', border:'rgba(255,166,87,.2)', icon:'?', label:'Possible question' },
-  concern:  { color:'#F85149', bg:'rgba(248,81,73,.08)',  border:'rgba(248,81,73,.2)',  icon:'!', label:'Possible concern' },
-}
-
-export default function WritingEditor({ project, script, characters, relationships, relationshipEvents = [], onSaveScript, onCreateRelationship, onUpdateRelationship, onCreateRelationshipEvent, onReload }) {
-  const [blocks, setBlocks]         = useState([makeBlock('scene')])
-  const [title, setTitle]           = useState('')
-  const [focusId, setFocusId]       = useState(null)
-  const [activePageIdx, setActivePageIdx] = useState(0)
-  const [saving, setSaving]         = useState(false)
-  const [saveMsg, setSaveMsg]       = useState(null)
-  const [xrayOpen, setXrayOpen]     = useState(true)
-  const [xrayExpanded, setExpanded] = useState({})
-  const [dropdownOpen, setDropdown] = useState(false)
-
-  // Pressure test
-  const [ptCard, setPtCard]       = useState(null)
-  const [contextMenu, setCtxMenu] = useState(null)
-
-  // Living bible
-  const [whisper, setWhisper]     = useState(null)
-  const [whyOpen, setWhyOpen]     = useState(false)
-  const [aiReading, setAiReading] = useState(false)
-  const [scanStatus, setScanStatus] = useState('')
-
-  // First Read
-  const [showFirstRead, setShowFirstRead]           = useState(false)
+export default function WritingEditor({
+  project,
+  script,
+  characters,
+  relationships,
+  relationshipEvents = [],
+  scriptVersions = [],
+  onSaveScript,
+  onCreateRelationship,
+  onUpdateRelationship,
+  onCreateRelationshipEvent,
+  onCreateScriptVersion,
+  onReload,
+}) {
+  const [title, setTitle] = useState(script?.title || project.title)
+  const [titlePage, setTitlePage] = useState(script?.title_page || { title:project.title, author:'', contact:'', draftDate:'' })
+  const [saveState, setSaveState] = useState('saved')
+  const [activeType, setActiveType] = useState('scene')
+  const [outline, setOutline] = useState([])
+  const [stats, setStats] = useState({ words:0, pages:1 })
+  const [queryText, setQueryText] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [suggestionIndex, setSuggestionIndex] = useState(0)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const [fileMenuOpen, setFileMenuOpen] = useState(false)
+  const [titlePageOpen, setTitlePageOpen] = useState(false)
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const [xrayOpen, setXrayOpen] = useState(true)
+  const [showFirstRead, setShowFirstRead] = useState(false)
   const [firstReadDismissed, setFirstReadDismissed] = useState(false)
+  const [aiBusy, setAiBusy] = useState('')
+  const [review, setReview] = useState(null)
+  const [message, setMessage] = useState('')
 
-  const refs      = useRef({})   // blockId → contentEditable DOM el
-  const blocksRef = useRef(blocks) // always-current blocks for event handlers
-  const pageRefs  = useRef({})    // pageIndex → page card DOM el
   const saveTimer = useRef(null)
-  const scrollRef = useRef(null)
+  const importRef = useRef(null)
+  const suggestionsRef = useRef([])
+  const suggestionIndexRef = useRef(0)
+  const titleRef = useRef(title)
+  const titlePageRef = useRef(titlePage)
+  const saveFnRef = useRef(onSaveScript)
+  const recoveryKey = `anchor-recovery:${project.id}`
 
-  // Keep blocksRef in sync
-  useEffect(() => { blocksRef.current = blocks }, [blocks])
+  useEffect(() => { titleRef.current = title }, [title])
+  useEffect(() => { titlePageRef.current = titlePage }, [titlePage])
+  useEffect(() => { saveFnRef.current = onSaveScript }, [onSaveScript])
 
-  // Load script
-  useEffect(() => {
-    if (script) {
-      const parsed = deserialize(script.content)
-      setBlocks(parsed)
-      setTitle(script.title || project.title)
-      // Sync DOM after render
-      setTimeout(() => {
-        for (const b of parsed) {
-          const el = refs.current[b.id]
-          if (el && el.innerText !== b.text) el.innerText = b.text
-        }
-      }, 50)
-    }
-  }, [script?.id])
-
-  // Auto-save
-  const scheduleAutoSave = useCallback((newBlocks, newTitle) => {
-    setSaveMsg(null); setSaving(true)
+  function queueSave(editorInstance, nextTitle = titleRef.current, nextTitlePage = titlePageRef.current) {
+    if (!editorInstance) return
+    const contentJson = editorInstance.getJSON()
+    const legacy = documentToLegacy(contentJson)
+    const recovery = { contentJson, title:nextTitle, titlePage:nextTitlePage, savedAt:new Date().toISOString() }
+    localStorage.setItem(recoveryKey, JSON.stringify(recovery))
+    setSaveState('saving')
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
-      await onSaveScript(serialize(newBlocks), newTitle)
-      setSaving(false); setSaveMsg('saved')
-      setTimeout(() => setSaveMsg(null), 3000)
-    }, 900)
-  }, [onSaveScript])
+      try {
+        await saveFnRef.current(legacy, nextTitle, { contentJson, titlePage:nextTitlePage })
+        setSaveState('saved')
+      } catch (error) {
+        setSaveState('failed')
+        setMessage('Save failed: ' + error.message)
+      }
+    }, 850)
+  }
 
-  // Manual story-integrity scan. Anchor reads only when the writer asks.
-  async function runLivingScan(currentBlocks, scopeLabel) {
-    if (characters.length < 1) {
-      setScanStatus('Add at least one character first.')
-      return
-    }
-    setAiReading(true)
-    setScanStatus('')
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      paragraph:false,
+      heading:false,
+      blockquote:false,
+      bulletList:false,
+      orderedList:false,
+      listItem:false,
+      codeBlock:false,
+      horizontalRule:false,
+    }),
+    ScreenplayParagraph,
+    ScreenplayKeyboard,
+    Placeholder.configure({
+      placeholder: ({ node }) => SCREENPLAY_ELEMENTS[node.attrs?.elementType]?.label || 'Write…',
+    }),
+  ], [])
+
+  const editor = useEditor({
+    immediatelyRender:false,
+    extensions,
+    content:legacyToDocument(script?.content || ''),
+    editorProps:{
+      attributes:{ class:'anchor-screenplay-editor', spellcheck:'true', autocapitalize:'sentences' },
+      handleKeyDown:(view, event) => {
+        if (suggestionsRef.current.length === 0) return false
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault()
+          const direction = event.key === 'ArrowDown' ? 1 : -1
+          const next = (suggestionIndexRef.current + direction + suggestionsRef.current.length) % suggestionsRef.current.length
+          suggestionIndexRef.current = next
+          setSuggestionIndex(next)
+          return true
+        }
+        if (event.key === 'Escape') {
+          suggestionsRef.current = []
+          setSuggestions([])
+          return true
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          const value = suggestionsRef.current[suggestionIndexRef.current]
+          const { $from } = view.state.selection
+          view.dispatch(view.state.tr.insertText(value, $from.start(), $from.end()))
+          suggestionsRef.current = []
+          setSuggestions([])
+          view.focus()
+          return true
+        }
+        return false
+      },
+    },
+    onUpdate:({ editor:instance }) => {
+      const json = instance.getJSON()
+      setOutline(documentOutline(instance))
+      setStats({ words:countWords(json), pages:estimateScreenplayPages(json) })
+      const paragraph = currentParagraph(instance)
+      setActiveType(paragraph.type)
+      setQueryText(paragraph.text)
+      queueSave(instance)
+    },
+    onSelectionUpdate:({ editor:instance }) => {
+      const paragraph = currentParagraph(instance)
+      setActiveType(paragraph.type)
+      setQueryText(paragraph.text)
+    },
+  })
+
+  useEffect(() => {
+    if (!editor) return
+    let initial = script?.content_json || legacyToDocument(script?.content || '')
+    let initialTitle = script?.title || project.title
+    let initialTitlePage = script?.title_page || { title:project.title, author:'', contact:'', draftDate:'' }
     try {
-      const selectedText = currentBlocks.map(b => b.text).filter(Boolean).join('\n')
-      if (selectedText.trim().length < 40) {
-        setScanStatus(`${scopeLabel} is too short to scan.`)
-        return
+      const recovery = JSON.parse(localStorage.getItem(recoveryKey) || 'null')
+      const serverTime = script?.updated_at ? new Date(script.updated_at).getTime() : 0
+      if (recovery?.contentJson && new Date(recovery.savedAt).getTime() > serverTime + 2000) {
+        if (confirm('Anchor found newer unsaved writing on this device. Recover it?')) {
+          initial = recovery.contentJson
+          initialTitle = recovery.title || initialTitle
+          initialTitlePage = recovery.titlePage || initialTitlePage
+          setMessage('Recovered the newest local draft.')
+        }
       }
-      const prompt = buildRelationshipScanPrompt({ scriptChunk: selectedText, characters, relationships })
-      const result = await callAI({ ...prompt, schema: RELATIONSHIP_SCAN_SCHEMA, maxTokens: 1800 })
-      if (result.shift_detected) {
-        const charA = characters.find(c => c.name.toLowerCase() === result.character_a.toLowerCase())
-        const charB = characters.find(c => result.character_b && c.name.toLowerCase() === result.character_b.toLowerCase())
-        if (!charA) return
-        const existingRel = charB ? relationships.find(r =>
-          (r.character_a === charA.id && r.character_b === charB.id) ||
-          (r.character_a === charB.id && r.character_b === charA.id)
-        ) : null
-        setWhisper({
-          relId: existingRel?.id || null,
-          charAId: charA.id, charBId: charB?.id || null,
-          charAName: charA.name, charBName: charB?.name || '',
-          proposedType: result.proposed_type,
-          proposedTension: result.proposed_tension,
-          reasoning: result.reasoning || [],
-          summary: result.summary,
-          question: result.question,
-          evidence: result.evidence,
-          segmentLabel: result.segment_label || currentBlocks.find(block => block.type === 'scene')?.text || scopeLabel,
-          type: result.type === 'relationship_shift' && !charB ? 'behavioral_contradiction' : (result.type || 'relationship_shift'),
-        })
-        setScanStatus('Possible story-integrity question found.')
-      } else {
-        setScanStatus(`No meaningful concern found in ${scopeLabel.toLowerCase()}.`)
-      }
-    } catch (e) { setScanStatus('Scan failed: ' + e.message) }
-    finally { setAiReading(false) }
-  }
+    } catch {}
+    titleRef.current = initialTitle
+    titlePageRef.current = initialTitlePage
+    setTitle(initialTitle)
+    setTitlePage(initialTitlePage)
+    editor.commands.setContent(initial, { emitUpdate:false })
+    setOutline(documentOutline(editor))
+    setStats({ words:countWords(editor.getJSON()), pages:estimateScreenplayPages(editor.getJSON()) })
+    setSaveState('saved')
+  }, [editor, script?.id, project.id])
 
-  function push(newBlocks, newTitle) {
-    setBlocks(newBlocks)
-    scheduleAutoSave(newBlocks, newTitle ?? title)
-  }
+  useEffect(() => {
+    if (!editor) return
+    const next = suggestionsFor(activeType, queryText, characters, outline)
+    suggestionsRef.current = next
+    suggestionIndexRef.current = 0
+    setSuggestions(next)
+    setSuggestionIndex(0)
+  }, [editor, activeType, queryText, characters, outline.length])
 
-  // ── contentEditable handlers ────────────────────────────────
+  useEffect(() => () => clearTimeout(saveTimer.current), [])
 
-  function handleInput(e, block) {
-    const el   = e.currentTarget
-    let text   = el.innerText
-    // Strip any HTML that might sneak in
-    if (BLOCKS[block.type]?.upper) text = text.toUpperCase()
-    // Don't re-render if text unchanged (avoids cursor jump)
-    const current = blocksRef.current
-    const updated = current.map(b => b.id === block.id ? { ...b, text } : b)
-    blocksRef.current = updated
-    setBlocks(updated)
-    scheduleAutoSave(updated, title)
-  }
-
-  function handleKeyDown(e, block) {
-    // Ctrl/Cmd + 1–8 shortcut
-    if ((e.ctrlKey || e.metaKey) && SHORTCUT_MAP[e.key]) {
-      e.preventDefault()
-      changeType(block.id, SHORTCUT_MAP[e.key])
-      return
-    }
-
-    // Tab → cycle block type
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      changeType(block.id, TAB_CYCLE[(TAB_CYCLE.indexOf(block.type)+1) % TAB_CYCLE.length])
-      return
-    }
-
-    // Enter → insert new block
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      const nextType = smartNext(block.type)
-      const nb = makeBlock(nextType)
-      const current = blocksRef.current
-      const idx = current.findIndex(b => b.id === block.id)
-      const updated = [...current.slice(0, idx+1), nb, ...current.slice(idx+1)]
-      push(updated)
-      setTimeout(() => {
-        const el = refs.current[nb.id]
-        if (el) { el.focus(); placeCaretAtStart(el) }
-      }, 30)
-      return
-    }
-
-    // Backspace on empty block → delete it
-    if (e.key === 'Backspace') {
-      const el = e.currentTarget
-      if (el.innerText === '' || el.innerText === '\n') {
-        e.preventDefault()
-        const current = blocksRef.current
-        if (current.length === 1) return
-        const idx = current.findIndex(b => b.id === block.id)
-        const updated = current.filter(b => b.id !== block.id)
-        push(updated)
-        setTimeout(() => {
-          const prevId = updated[Math.max(0, idx-1)]?.id
-          const prevEl = refs.current[prevId]
-          if (prevEl) { prevEl.focus(); placeCaretAtEnd(prevEl) }
-        }, 30)
-      }
-      return
-    }
-
-    if (contextMenu) setCtxMenu(null)
-    if (dropdownOpen) setDropdown(false)
-  }
-
-  function changeType(id, type) {
-    const current = blocksRef.current
-    const block   = current.find(b => b.id === id)
-    if (!block) return
-    const meta    = BLOCKS[type]
-    const newText = meta.upper ? block.text.toUpperCase() : block.text
-    const updated = current.map(b => b.id === id ? { ...b, type, text: newText } : b)
-    push(updated)
-    setDropdown(false)
-    // Update DOM text if case changed
-    setTimeout(() => {
-      const el = refs.current[id]
-      if (el && el.innerText !== newText) {
-        el.innerText = newText
-        placeCaretAtEnd(el)
-      }
-      el?.focus()
-    }, 20)
-  }
-
-  // Right-click: capture cross-block selection
-  function handleContextMenu(e) {
-    const selectedText = getSelectedText()
-    if (!selectedText) return
-    e.preventDefault()
-    const scrollRect = scrollRef.current?.getBoundingClientRect()
-    // Gather surrounding context from all blocks
-    const surrounding = blocksRef.current.map(b => b.text).join('\n')
-    // Find which block the anchor node is in
-    const sel     = window.getSelection()
-    let blockId   = null
-    if (sel?.anchorNode) {
-      for (const [id, el] of Object.entries(refs.current)) {
-        if (el && el.contains(sel.anchorNode)) { blockId = id; break }
+  useEffect(() => {
+    const handleShortcut = event => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        setSearchOpen(true)
       }
     }
-    setCtxMenu({
-      x: e.clientX - (scrollRect?.left || 0),
-      y: e.clientY - (scrollRect?.top  || 0) + (scrollRef.current?.scrollTop || 0),
-      blockId,
-      selectedText,
-      surroundingContext: surrounding,
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
+
+  function setElement(type) {
+    editor?.chain().focus().setScreenplayElement(type).run()
+    if (type === 'parenthetical' && editor) {
+      const paragraph = currentParagraph(editor)
+      if (!paragraph.text) editor.chain().insertContent('()').setTextSelection(paragraph.from + 1).run()
+    }
+  }
+
+  function acceptSuggestion(value) {
+    if (!editor) return
+    const paragraph = currentParagraph(editor)
+    editor.chain().focus().setTextSelection({ from:paragraph.from, to:paragraph.to }).insertContent(value).run()
+    suggestionsRef.current = []
+    setSuggestions([])
+  }
+
+  function jumpToScene(scene) {
+    editor?.chain().focus().setTextSelection(scene.pos + 1).scrollIntoView().run()
+  }
+
+  function findNext() {
+    if (!editor || !findText) return
+    const needle = findText.toLowerCase()
+    const matches = []
+    editor.state.doc.descendants((node, pos) => {
+      if (!node.isText) return
+      const haystack = node.text.toLowerCase()
+      let offset = 0
+      while ((offset = haystack.indexOf(needle, offset)) >= 0) {
+        matches.push({ from:pos + offset, to:pos + offset + needle.length })
+        offset += Math.max(needle.length, 1)
+      }
     })
-    setPtCard(null)
+    const next = matches.find(match => match.from > editor.state.selection.from) || matches[0]
+    if (!next) return setMessage('No matches found.')
+    editor.chain().focus().setTextSelection(next).scrollIntoView().run()
+  }
+
+  function replaceCurrent() {
+    if (!editor || !findText) return
+    const current = selectedText(editor)
+    if (current.toLowerCase() !== findText.toLowerCase()) return findNext()
+    editor.chain().focus().insertContent(replaceText).run()
+    findNext()
+  }
+
+  function replaceAll() {
+    if (!editor || !findText) return
+    const needle = findText.toLowerCase()
+    const matches = []
+    editor.state.doc.descendants((node, pos) => {
+      if (!node.isText) return
+      const haystack = node.text.toLowerCase()
+      let offset = 0
+      while ((offset = haystack.indexOf(needle, offset)) >= 0) {
+        matches.push({ from:pos + offset, to:pos + offset + needle.length })
+        offset += Math.max(needle.length, 1)
+      }
+    })
+    let transaction = editor.state.tr
+    matches.reverse().forEach(match => {
+      transaction = replaceText
+        ? transaction.replaceWith(match.from, match.to, editor.state.schema.text(replaceText))
+        : transaction.delete(match.from, match.to)
+    })
+    editor.view.dispatch(transaction)
+    setMessage(`Replaced ${matches.length} match${matches.length === 1 ? '' : 'es'}.`)
+  }
+
+  async function importScript(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !editor) return
+    if (!confirm(`Replace the current draft with “${file.name}”? A local recovery copy will remain available.`)) return
+    try {
+      const text = await file.text()
+      const isFdx = file.name.toLowerCase().endsWith('.fdx')
+      const document = isFdx ? fdxToDocument(text) : legacyToDocument(text)
+      editor.commands.setContent(document)
+      if (isFdx) {
+        const importedPage = titlePageFromFdx(text)
+        titlePageRef.current = importedPage
+        setTitlePage(importedPage)
+      }
+      setMessage(`Imported ${file.name}.`)
+    } catch (error) {
+      setMessage('Import failed: ' + error.message)
+    }
+  }
+
+  function exportFile(format) {
+    if (!editor) return
+    const filename = safeFilename(title)
+    if (format === 'fdx') downloadTextFile(`${filename}.fdx`, documentToFdx(editor.getJSON(), titlePageRef.current), 'application/xml;charset=utf-8')
+    if (format === 'txt') downloadTextFile(`${filename}.txt`, documentToPlainText(editor.getJSON()))
+    if (format === 'pdf') window.print()
+    setFileMenuOpen(false)
+  }
+
+  async function saveNamedVersion() {
+    if (!editor || !onCreateScriptVersion) return
+    const label = prompt('Name this version:', `Draft ${new Date().toLocaleString()}`)
+    if (!label) return
+    try {
+      await onCreateScriptVersion({
+        label,
+        title:titleRef.current,
+        content:documentToLegacy(editor.getJSON()),
+        content_json:editor.getJSON(),
+        title_page:titlePageRef.current,
+      })
+      setMessage('Version saved.')
+    } catch (error) {
+      setMessage('Version could not be saved: ' + error.message)
+    }
+  }
+
+  function restoreVersion(version) {
+    if (!editor || !confirm(`Restore “${version.label}”? The current draft will remain in local recovery.`)) return
+    editor.commands.setContent(version.content_json || legacyToDocument(version.content || ''))
+    setTitle(version.title || title)
+    titleRef.current = version.title || title
+    if (version.title_page) {
+      setTitlePage(version.title_page)
+      titlePageRef.current = version.title_page
+    }
+    setVersionsOpen(false)
+    setMessage(`Restored ${version.label}.`)
   }
 
   async function runPressureTest() {
-    if (!contextMenu) return
-    // Find character context
-    const current    = blocksRef.current
-    const blockIdx   = contextMenu.blockId ? current.findIndex(b => b.id === contextMenu.blockId) : 0
-    const preceding  = current.slice(Math.max(0, blockIdx-5), blockIdx)
-    const charBlock  = [...preceding].reverse().find(b => b.type === 'character')
-    const character  = characters.find(c => charBlock && c.name.toUpperCase() === charBlock.text.trim()) || characters[0]
-    if (!character) { alert('Add characters to your story bible first.'); return }
-    const sceneChars = detectCharsInScene(current.slice(Math.max(0, blockIdx-8), blockIdx+2), characters).filter(c => c.id !== character.id)
-    const otherChar  = sceneChars[0] || null
-    const rel        = otherChar ? relationships.find(r =>
-      (r.character_a === character.id && r.character_b === otherChar.id) ||
-      (r.character_a === otherChar.id && r.character_b === character.id)
+    const passage = selectedText(editor)
+    if (!passage) return setMessage('Select a passage first.')
+    const character = findCharacterBeforeSelection(editor, characters)
+    if (!character) return setMessage('Add a character to the Story Bible first.')
+    const context = currentSceneText(editor)
+    const other = characters.find(item => item.id !== character.id && context.toLowerCase().includes(item.name.toLowerCase()))
+    const relationship = other ? relationships.find(item =>
+      (item.character_a === character.id && item.character_b === other.id) ||
+      (item.character_a === other.id && item.character_b === character.id)
     ) : null
-    setCtxMenu(null)
-    setPtCard({ loading:true, verdict:null, summary:'', notes:[], character, otherChar, rel })
+    setAiBusy('Pressure testing')
+    setReview(null)
     try {
-      const { systemPrompt, prompt } = buildPressureTestPrompt({
-        character, selectedText: contextMenu.selectedText,
-        surroundingContext: contextMenu.surroundingContext,
-        relationship: rel, otherCharacter: otherChar,
-      })
-      const result = await callAI({ systemPrompt, prompt, schema: PRESSURE_TEST_SCHEMA, maxTokens: 1800 })
-      setPtCard({ loading:false, ...result, character, otherChar, rel })
-    } catch (err) {
-      setPtCard({ loading:false, verdict:'question', summary:err.message, evidence:'', question:'', notes:[], character, otherChar, rel })
-    }
+      const prompt = buildPressureTestPrompt({ character, selectedText:passage, surroundingContext:context, relationship, otherCharacter:other })
+      const result = await callAI({ ...prompt, schema:PRESSURE_TEST_SCHEMA, maxTokens:1800 })
+      setReview({ kind:'pressure', ...result, character })
+    } catch (error) { setMessage('Pressure Test failed: ' + error.message) }
+    setAiBusy('')
   }
 
-  async function confirmWhisperUpdate() {
-    if (!whisper) return
-    if (whisper.type === 'relationship_shift' && whisper.charBId) {
-      let relationshipId = whisper.relId
-      if (!relationshipId && onCreateRelationship) {
-        const created = await onCreateRelationship(whisper.charAId, whisper.charBId)
-        relationshipId = created?.id
-      }
-      if (!relationshipId) return
-      await onUpdateRelationship(relationshipId, {
-        type:         whisper.proposedType,
-        tension:      whisper.proposedTension,
-        ai_reasoning: whisper.reasoning.join('\n'),
-      })
-      if (onCreateRelationshipEvent) {
-        await onCreateRelationshipEvent(relationshipId, {
-          sequence_index: Math.max(0, ...relationshipEvents.map(event => event.sequence_index || 0)) + 1,
-          segment_type: 'scene',
-          segment_label: whisper.segmentLabel || 'Manual scene scan',
-          relationship_type: whisper.proposedType,
-          tension: whisper.proposedTension,
-          summary: whisper.summary,
-          evidence: whisper.evidence || '',
-          source: 'scene_scan',
-        })
-      }
-    }
-    setWhisper(null); setWhyOpen(false)
+  async function runScan(scope) {
+    if (!editor || characters.length < 1) return setMessage('Add at least one character first.')
+    const passage = scope === 'scene' ? currentSceneText(editor) : documentToPlainText(editor.getJSON())
+    if (passage.length < 40) return setMessage('There is not enough writing to scan yet.')
+    setAiBusy(scope === 'scene' ? 'Scanning scene' : 'Scanning draft')
+    setReview(null)
+    try {
+      const prompt = buildRelationshipScanPrompt({ scriptChunk:passage, characters, relationships })
+      const result = await callAI({ ...prompt, schema:RELATIONSHIP_SCAN_SCHEMA, maxTokens:1800 })
+      const charA = characters.find(character => character.name.toLowerCase() === result.character_a?.toLowerCase())
+      const charB = characters.find(character => character.name.toLowerCase() === result.character_b?.toLowerCase())
+      setReview({ kind:'scan', scope, ...result, charA, charB })
+    } catch (error) { setMessage('Scan failed: ' + error.message) }
+    setAiBusy('')
   }
 
-  const focusedBlock = blocks.find(b => b.id === focusId)
-  const pages        = paginateBlocks(blocks)
-  const words        = blocks.reduce((n,b) => n + (b.text.trim() ? b.text.trim().split(/\s+/).length : 0), 0)
-  const showBanner   = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
-  const activePage   = pages[activePageIdx] || pages[0] || []
-  const sceneChars   = detectCharsInScene(activePage, characters)
-
-  // IntersectionObserver — track which page is most visible in viewport
-  // Runs after pages are computed, uses blocks.length as dependency
-  useEffect(() => {
-    const observers = []
-    const visibility = {}
-    const updateActivePage = () => {
-      let maxRatio = -1, maxIdx = 0
-      for (const [idx, ratio] of Object.entries(visibility)) {
-        if (ratio > maxRatio) { maxRatio = ratio; maxIdx = parseInt(idx) }
-      }
-      setActivePageIdx(maxIdx)
-    }
-    Object.entries(pageRefs.current).forEach(([idx, el]) => {
-      if (!el) return
-      const obs = new IntersectionObserver(([entry]) => {
-        visibility[idx] = entry.intersectionRatio
-        updateActivePage()
-      }, { root: scrollRef.current, threshold: Array.from({length:11}, (_,i) => i/10) })
-      obs.observe(el)
-      observers.push(obs)
+  async function confirmScan() {
+    if (!review?.shift_detected || review.type !== 'relationship_shift' || !review.charA || !review.charB) return setReview(null)
+    let relationship = relationships.find(item =>
+      (item.character_a === review.charA.id && item.character_b === review.charB.id) ||
+      (item.character_a === review.charB.id && item.character_b === review.charA.id)
+    )
+    if (!relationship) relationship = await onCreateRelationship?.(review.charA.id, review.charB.id)
+    if (!relationship) return setMessage('Could not create this relationship.')
+    const tension = Math.max(0, Math.min(100, Math.round(review.proposed_tension || 0)))
+    await onUpdateRelationship(relationship.id, { type:review.proposed_type, tension, ai_reasoning:(review.reasoning || []).join('\n') })
+    await onCreateRelationshipEvent?.(relationship.id, {
+      sequence_index:Math.max(0, ...relationshipEvents.map(event => event.sequence_index || 0)) + 1,
+      segment_type:'scene',
+      segment_label:review.segment_label || currentParagraph(editor).text || 'Writer-selected scan',
+      relationship_type:review.proposed_type,
+      tension,
+      summary:review.summary,
+      evidence:review.evidence,
+      source:review.scope === 'scene' ? 'scene_scan' : 'draft_scan',
     })
-    return () => observers.forEach(o => o.disconnect())
-  }, [blocks.length])
+    setReview(null)
+    setMessage('Relationship update confirmed and added to the timeline.')
+  }
+
+  const sceneText = currentSceneText(editor)
+  const sceneCharacters = characters.filter(character => sceneText.toLowerCase().includes(character.name.toLowerCase()))
+  const showFirstReadBanner = script?.content && characters.length === 0 && !firstReadDismissed && !showFirstRead
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
-
-      {/* ── First Read overlay ── */}
+    <div className="screenplay-workspace">
       {showFirstRead && script?.content && (
         <FirstRead
-          scriptText={script.content.replace(/\[\w+\]/g, '')}
+          scriptText={documentToPlainText(editor?.getJSON())}
           format={project.format}
           projectId={project.id}
           onComplete={async () => { setShowFirstRead(false); await onReload?.() }}
@@ -450,464 +492,194 @@ export default function WritingEditor({ project, script, characters, relationshi
         />
       )}
 
-      {/* ── Editor column ── */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
-
-        {/* Toolbar */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 16px', borderBottom:'1px solid var(--edge)', background:'var(--s1)', flexShrink:0 }}>
-          <input value={title}
-            onChange={e => { setTitle(e.target.value); scheduleAutoSave(blocks, e.target.value) }}
-            style={{ background:'none', border:'none', fontSize:13, fontWeight:500, color:'var(--text)', width:180, padding:'2px 4px', borderRadius:4, fontFamily:'var(--font-ui)' }}
-            onFocus={e => e.target.style.background='var(--edge)'}
-            onBlur={e => e.target.style.background='none'}
-            placeholder="Script title…" spellCheck={false}
-          />
-          <div style={{ width:1, height:16, background:'var(--edge)' }} />
-
-          {/* Block type dropdown */}
-          <div style={{ position:'relative' }}>
-            <button
-              onClick={() => setDropdown(v => !v)}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:5, fontSize:12, fontWeight:500, background:dropdownOpen?'var(--s3)':'var(--s2)', color:'var(--text)', border:'1px solid var(--edge)', cursor:'pointer', fontFamily:'var(--font-ui)', minWidth:150 }}
-            >
-              <span style={{ flex:1, textAlign:'left' }}>{focusedBlock ? BLOCKS[focusedBlock.type]?.label : 'Block type'}</span>
-              <span style={{ fontSize:9, color:'var(--dim)' }}>▾</span>
+      <aside className="screenplay-scenes">
+        <div className="screenplay-panel-title">Scenes</div>
+        <div className="screenplay-scene-list">
+          {outline.length === 0 && <div className="screenplay-empty">Scene headings appear here.</div>}
+          {outline.map(scene => (
+            <button key={`${scene.pos}-${scene.label}`} onClick={() => jumpToScene(scene)}>
+              <span>{scene.number}</span>{scene.label}
             </button>
-            {dropdownOpen && (
-              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:80, background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:8, overflow:'hidden', minWidth:230, boxShadow:'0 8px 32px rgba(0,0,0,.6)' }}>
-                <div style={{ padding:'6px 12px 4px', fontSize:9, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.08em', borderBottom:'1px solid var(--edge)', fontWeight:500 }}>Tab to cycle · Ctrl+1–8</div>
-                {Object.entries(BLOCKS).map(([type, { label, shortcut }]) => {
-                  const active = focusedBlock?.type === type
-                  return (
-                    <button key={type}
-                      onMouseDown={e => { e.preventDefault(); if (focusId) changeType(focusId, type) }}
-                      style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'8px 12px', fontSize:12, cursor:'pointer', background:active?'var(--gold-bg)':'transparent', color:active?'var(--gold)':'var(--text)', border:'none', fontFamily:'var(--font-ui)', textAlign:'left' }}
-                    >
-                      <span>{label}</span>
-                      <span style={{ fontSize:10, color:'var(--dim)', fontWeight:300 }}>{shortcut}</span>
-                    </button>
-                  )
-                })}
+          ))}
+        </div>
+      </aside>
+
+      <section className="screenplay-main">
+        <div className="screenplay-toolbar no-print">
+          <input
+            className="screenplay-title-input"
+            value={title}
+            onChange={event => {
+              const value = event.target.value
+              setTitle(value)
+              titleRef.current = value
+              queueSave(editor, value)
+            }}
+            placeholder="Script title"
+          />
+          <select value={activeType} onChange={event => setElement(event.target.value)} aria-label="Screenplay element">
+            {SCREENPLAY_ELEMENT_ORDER.map(type => <option key={type} value={type}>{SCREENPLAY_ELEMENTS[type].label}</option>)}
+          </select>
+          <button onClick={() => editor?.chain().focus().undo().run()} disabled={!editor?.can().undo()} title="Undo">↶</button>
+          <button onClick={() => editor?.chain().focus().redo().run()} disabled={!editor?.can().redo()} title="Redo">↷</button>
+          <button onClick={() => setSearchOpen(value => !value)}>Find</button>
+          <button onClick={() => setTitlePageOpen(true)}>Title Page</button>
+          <button onClick={saveNamedVersion}>Save Version</button>
+          <button onClick={() => setVersionsOpen(true)}>Versions</button>
+          <div className="screenplay-file-menu">
+            <button onClick={() => setFileMenuOpen(value => !value)}>File ▾</button>
+            {fileMenuOpen && (
+              <div>
+                <button onClick={() => importRef.current?.click()}>Import FDX/TXT</button>
+                <button onClick={() => exportFile('fdx')}>Export FDX</button>
+                <button onClick={() => exportFile('txt')}>Export TXT</button>
+                <button onClick={() => exportFile('pdf')}>Print / Save PDF</button>
               </div>
             )}
           </div>
-
-          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
-            {saving
-              ? <span style={{ fontSize:11, color:'var(--gold)', display:'flex', alignItems:'center', gap:5 }}><Spinner/> Saving…</span>
-              : saveMsg === 'saved'
-                ? <span style={{ fontSize:11, color:'var(--gold)', fontWeight:300 }}>✓ Saved</span>
-                : <span style={{ fontSize:11, color:'var(--dim)', fontWeight:300 }}>Auto-saves</span>
-            }
-            <span style={{ fontSize:11, color:'var(--dim)', fontWeight:300, borderLeft:'1px solid var(--edge)', paddingLeft:10 }}>
-              {words.toLocaleString()} words · {pages.length}p
-            </span>
-            <button disabled={aiReading} onClick={() => runLivingScan(currentSceneBlocks(blocksRef.current, focusId), 'Current scene')} style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background:'transparent', color:'var(--muted)', border:'1px solid var(--edge)', cursor:aiReading?'wait':'pointer', fontFamily:'var(--font-ui)' }}>
-              Scan Scene
-            </button>
-            <button disabled={aiReading} onClick={() => runLivingScan(blocksRef.current, 'Full draft')} style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background:'transparent', color:'var(--muted)', border:'1px solid var(--edge)', cursor:aiReading?'wait':'pointer', fontFamily:'var(--font-ui)' }}>
-              Scan Draft
-            </button>
-            <button onClick={() => setXrayOpen(v => !v)} style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background:xrayOpen?'var(--gold-bg)':'transparent', color:xrayOpen?'var(--gold)':'var(--dim)', border:`1px solid ${xrayOpen?'rgba(200,169,106,.2)':'transparent'}`, cursor:'pointer', fontFamily:'var(--font-ui)' }}>
-              X-Ray
-            </button>
-          </div>
+          <input ref={importRef} type="file" accept=".fdx,.txt,text/plain,application/xml" onChange={importScript} hidden />
+          <span className={`screenplay-save-state ${saveState}`}>{saveState === 'saving' ? 'Saving…' : saveState === 'failed' ? 'Save failed' : 'Saved'}</span>
         </div>
 
-        {/* Hint bar */}
-        <div style={{ padding:'3px 16px', background:'var(--bg)', borderBottom:'1px solid var(--edge)', flexShrink:0, fontSize:10, color:'var(--dim)', fontWeight:300 }}>
-          <b style={{ color:'var(--muted)', fontWeight:500 }}>Ctrl+1–8</b> block type &nbsp;·&nbsp;
-          <b style={{ color:'var(--muted)', fontWeight:500 }}>Tab</b> cycle &nbsp;·&nbsp;
-          <b style={{ color:'var(--muted)', fontWeight:500 }}>Enter</b> new block &nbsp;·&nbsp;
-          <b style={{ color:'var(--muted)', fontWeight:500 }}>Select + right-click</b> Pressure Test
-          {scanStatus && <span style={{ marginLeft:12, color:scanStatus.startsWith('Scan failed') ? 'var(--danger)' : 'var(--gold)' }}>· {scanStatus}</span>}
+        <div className="screenplay-review-toolbar no-print">
+          <span>{stats.words.toLocaleString()} words · {stats.pages} page{stats.pages === 1 ? '' : 's'}</span>
+          <button onClick={runPressureTest} disabled={!!aiBusy || !selectedText(editor)}>Pressure Test</button>
+          <button onClick={() => runScan('scene')} disabled={!!aiBusy}>Scan Scene</button>
+          <button onClick={() => runScan('draft')} disabled={!!aiBusy}>Scan Draft</button>
+          <button onClick={() => setXrayOpen(value => !value)} className={xrayOpen ? 'active' : ''}>X-Ray</button>
+          {aiBusy && <b>{aiBusy}…</b>}
         </div>
 
-        {/* First Read banner */}
-        {showBanner && (
-          <div style={{ padding:'9px 16px', background:'rgba(200,169,106,.06)', borderBottom:'1px solid rgba(200,169,106,.15)', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
-            <div style={{ display:'flex', gap:3 }}><Dot/><Dot/><Dot/></div>
-            <span style={{ fontSize:12, color:'var(--muted)', fontWeight:300, flex:1 }}>Start a First Read to propose characters, relationships, and timeline events for your review</span>
-            <button className="btn btn-gold" onClick={() => setShowFirstRead(true)} style={{ fontSize:11, padding:'4px 12px' }}>✦ First Read</button>
-            <button onClick={() => setFirstReadDismissed(true)} style={{ fontSize:11, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)' }}>✕</button>
+        {searchOpen && (
+          <div className="screenplay-search no-print">
+            <input value={findText} onChange={event => setFindText(event.target.value)} placeholder="Find" autoFocus onKeyDown={event => { if (event.key === 'Enter') findNext() }} />
+            <input value={replaceText} onChange={event => setReplaceText(event.target.value)} placeholder="Replace with" />
+            <button onClick={findNext}>Next</button>
+            <button onClick={replaceCurrent}>Replace</button>
+            <button onClick={replaceAll}>Replace all</button>
+            <button onClick={() => setSearchOpen(false)}>✕</button>
           </div>
         )}
 
-        {/* Script scroll area */}
-        <div
-          ref={scrollRef}
-          style={{ flex:1, overflow:'auto', padding:'32px 24px 120px', background:'#2A2A2A', position:'relative' }}
-          onClick={() => { setCtxMenu(null); setDropdown(false) }}
-          onContextMenu={handleContextMenu}
-        >
-          {pages.map((pageBlocks, pageIndex) => (
-            <div key={pageIndex} style={{ maxWidth:680, margin:'0 auto' }}>
-              <div style={{ textAlign:'right', fontSize:10, color:'#888', fontFamily:"'Courier Prime', monospace", marginBottom:4, paddingRight:4 }}>
-                {pageIndex + 1}.
-              </div>
-              <div ref={el => pageRefs.current[pageIndex] = el} style={{
-                background:'#F8F8F6', borderRadius:2,
-                padding: project.format === 'screenplay' ? '52px 72px 60px' : '48px 60px 60px',
-                minHeight:880, boxShadow:'0 4px 24px rgba(0,0,0,.5)',
-                position:'relative', marginBottom:32,
-              }}>
-                {pageBlocks.map(block => (
-                  <div
-                    key={block.id}
-                    ref={el => refs.current[block.id] = el}
-                    contentEditable
-                    suppressContentEditableWarning
-                    data-block-id={block.id}
-                    data-placeholder={BLOCKS[block.type]?.hint}
-                    onInput={e => handleInput(e, block)}
-                    onKeyDown={e => handleKeyDown(e, block)}
-                    onFocus={() => { setFocusId(block.id); setDropdown(false) }}
-                    onBlur={() => setFocusId(id => id === block.id ? null : id)}
-                    style={{
-                      ...getBlockCSS(block.type),
-                      borderLeft: focusId===block.id ? '2px solid rgba(200,169,106,.45)' : '2px solid transparent',
-                      paddingLeft:'4px',
-                      background: focusId===block.id ? 'rgba(200,169,106,.03)' : 'transparent',
-                      transition:'background .1s',
-                      position:'relative',
-                    }}
-                  />
-                ))}
-              </div>
+        {showFirstReadBanner && (
+          <div className="screenplay-first-read no-print">
+            <span>First Read can propose characters, relationships and timeline events for your review.</span>
+            <button onClick={() => setShowFirstRead(true)}>Start First Read</button>
+            <button onClick={() => setFirstReadDismissed(true)}>Dismiss</button>
+          </div>
+        )}
+
+        {suggestions.length > 0 && editor?.isFocused && (
+          <div className="screenplay-suggestions no-print">
+            <span>{SCREENPLAY_ELEMENTS[activeType]?.label} suggestions</span>
+            {suggestions.map((suggestion, index) => (
+              <button key={suggestion} className={index === suggestionIndex ? 'active' : ''} onMouseDown={event => { event.preventDefault(); acceptSuggestion(suggestion) }}>
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {message && <div className="screenplay-message no-print"><span>{message}</span><button onClick={() => setMessage('')}>✕</button></div>}
+
+        <div className="screenplay-scroll">
+          <section className="screenplay-print-title">
+            <h1>{titlePage.title || title}</h1>
+            <p>Written by</p>
+            <h2>{titlePage.author || ''}</h2>
+            <div>{titlePage.contact || ''}</div>
+            <footer>{titlePage.draftDate || ''}</footer>
+          </section>
+          <article className="screenplay-page">
+            <EditorContent editor={editor} />
+          </article>
+        </div>
+      </section>
+
+      {xrayOpen && (
+        <aside className="screenplay-xray no-print">
+          <div className="screenplay-panel-title">X-Ray · Current Scene</div>
+          {sceneCharacters.length === 0 && <div className="screenplay-empty">No Story Bible characters detected in this scene.</div>}
+          {sceneCharacters.map(character => (
+            <div key={character.id} className="screenplay-xray-card">
+              <div><i style={{ background:character.color }} /> <b>{character.name}</b></div>
+              {character.goals && <p><strong>Wants:</strong> {character.goals}</p>}
+              {character.fears && <p><strong>Fears:</strong> {character.fears}</p>}
+              {character.voice && <p><strong>Voice:</strong> {character.voice}</p>}
             </div>
           ))}
-
-          {/* Context menu */}
-          {contextMenu && (
-            <div onClick={e => e.stopPropagation()} style={{
-              position:'absolute', left:Math.min(contextMenu.x, (scrollRef.current?.clientWidth||600)-210), top:contextMenu.y,
-              zIndex:60, background:'rgba(8,8,13,.97)', backdropFilter:'blur(20px)',
-              border:'1px solid rgba(255,255,255,.08)', borderRadius:8,
-              padding:5, minWidth:200, boxShadow:'0 8px 40px rgba(0,0,0,.8)',
-            }}>
-              <button onClick={runPressureTest} style={{ display:'flex', alignItems:'center', gap:9, width:'100%', padding:'8px 11px', borderRadius:5, fontSize:12, fontWeight:500, color:'var(--gold)', background:'var(--gold-bg)', border:'1px solid rgba(200,169,106,.18)', cursor:'pointer', fontFamily:'var(--font-ui)' }}>
-                <span style={{ fontSize:11 }}>⚡</span> Pressure Test
-              </button>
-            </div>
-          )}
-
-          {/* Pressure test card */}
-          {ptCard && (
-            <div style={{ position:'sticky', bottom:80, zIndex:55, maxWidth:360, margin:'16px auto 0', pointerEvents:'auto' }}>
-              <PressureTestCard card={ptCard} onClose={() => setPtCard(null)} />
-            </div>
-          )}
-
-          {/* Whisper banner */}
-          {whisper && !whyOpen && (
-            <div className="whisper">
-              <div style={{ display:'flex', gap:3 }}>
-                <div className="breath-dot"/><div className="breath-dot"/><div className="breath-dot"/>
-              </div>
-              <div style={{ flex:1, fontSize:13, color:'var(--muted)', fontWeight:300 }}>
-                <b style={{ color:'var(--text)', fontWeight:500 }}>
-                  {whisper.type === 'behavioral_contradiction' ? whisper.charAName : `${whisper.charAName} & ${whisper.charBName}`}
-                </b>
-                {' — '}{whisper.summary}
-                {whisper.type === 'relationship_shift' && whisper.proposedType && (
-                  <span style={{ marginLeft:8, fontSize:12, color:'var(--gold)', fontWeight:400 }}>
-                    {relationships.find(r =>
-                      (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
-                      (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
-                    )?.type || '?'} → {whisper.proposedType} · tension {whisper.proposedTension}/100
-                  </span>
-                )}
-              </div>
-              <button onClick={() => setWhyOpen(true)} style={{ fontSize:13, color:'var(--muted)', border:'1px solid var(--edge)', borderRadius:4, padding:'4px 10px', cursor:'pointer', background:'none', fontFamily:'var(--font-ui)', flexShrink:0 }}>Why?</button>
-              <button onClick={confirmWhisperUpdate} style={{ fontSize:13, fontWeight:500, color:'var(--bg)', background:'var(--gold)', border:'none', borderRadius:5, padding:'6px 14px', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0 }}>
-                {whisper.type === 'relationship_shift' ? 'Update relationship' : 'Noted'}
-              </button>
-              <button onClick={() => setWhisper(null)} style={{ fontSize:13, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', flexShrink:0, fontWeight:300 }}>Dismiss</button>
-            </div>
-          )}
-
-          {/* Why card */}
-          {whisper && whyOpen && (
-            <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:60, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={() => setWhyOpen(false)}>
-              <WhyCard whisper={whisper} relationships={relationships} onConfirm={confirmWhisperUpdate} onEdit={() => setWhyOpen(false)} onClose={() => setWhyOpen(false)} />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── X-Ray Panel ── */}
-      {xrayOpen && (
-        <div style={{ width:240, flexShrink:0, background:'var(--s1)', borderLeft:'1px solid var(--edge)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
-          <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--edge)', display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:10, fontWeight:500, color:'var(--gold)', textTransform:'uppercase', letterSpacing:'.08em' }}>X-Ray</span>
-            <span style={{ fontSize:10, color:'var(--dim)', fontWeight:300, flex:1 }}>characters in scene</span>
-          </div>
-          <div style={{ padding:'6px 14px 8px', borderBottom:'1px solid var(--edge)', background:aiReading?'rgba(200,169,106,.04)':'transparent', display:'flex', alignItems:'center', gap:7, transition:'background .3s' }}>
-            <div style={{ display:'flex', gap:3 }}>
-              <div className="breath-dot"/><div className="breath-dot"/><div className="breath-dot"/>
-            </div>
-            <span style={{ fontSize:10, color:'var(--gold)', fontWeight:300, opacity:.7 }}>
-              {aiReading ? 'Reading your selection…' : 'Ready when you are'}
-            </span>
-          </div>
-          <div style={{ flex:1, overflow:'auto', padding:'12px 14px' }}>
-            {sceneChars.length > 0 && (
-              <div style={{ marginBottom:14 }}>
-                <div style={{ fontSize:9, fontWeight:500, color:'var(--gold)', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:8 }}>Detected ({sceneChars.length})</div>
-                {sceneChars.map(c => <XRayChar key={c.id} char={c} relationships={relationships} characters={characters} expanded={!!xrayExpanded[c.id]} onToggle={() => setExpanded(x=>({...x,[c.id]:!x[c.id]}))} />)}
-              </div>
-            )}
-            <div>
-              <div style={{ fontSize:9, fontWeight:500, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:8 }}>All characters</div>
-              {characters.length === 0
-                ? <div style={{ fontSize:11, color:'var(--dim)', fontStyle:'italic', fontWeight:300 }}>Add characters in the Characters module</div>
-                : characters.map(c => (
-                    <XRayChar key={c.id} char={c} relationships={relationships} characters={characters}
-                      expanded={!!xrayExpanded[c.id]}
-                      onToggle={() => setExpanded(x=>({...x,[c.id]:!x[c.id]}))}
-                      dimmed={sceneChars.length > 0 && !sceneChars.find(s => s.id === c.id)}
-                    />
-                  ))
-              }
-            </div>
-          </div>
-        </div>
+        </aside>
       )}
-    </div>
-  )
-}
 
-// ── Placeholder CSS injection ──────────────────────────────────
-// Injected once at module level so contentEditable divs show hint text
-if (typeof document !== 'undefined') {
-  const styleId = 'anchor-editor-placeholders'
-  if (!document.getElementById(styleId)) {
-    const s = document.createElement('style')
-    s.id = styleId
-    s.textContent = `
-      [contenteditable][data-placeholder]:empty::before {
-        content: attr(data-placeholder);
-        color: #999;
-        pointer-events: none;
-        font-style: italic;
-      }
-    `
-    document.head.appendChild(s)
-  }
-}
-
-// ── Caret helpers ──────────────────────────────────────────────
-function placeCaretAtEnd(el) {
-  const range = document.createRange()
-  const sel   = window.getSelection()
-  range.selectNodeContents(el)
-  range.collapse(false)
-  sel.removeAllRanges()
-  sel.addRange(range)
-}
-
-function placeCaretAtStart(el) {
-  const range = document.createRange()
-  const sel   = window.getSelection()
-  range.selectNodeContents(el)
-  range.collapse(true)
-  sel.removeAllRanges()
-  sel.addRange(range)
-}
-
-// ── X-Ray character card ───────────────────────────────────────
-function XRayChar({ char, relationships, characters, expanded, onToggle, dimmed }) {
-  const rels = relationships.filter(r => r.character_a === char.id || r.character_b === char.id)
-  return (
-    <div style={{ marginBottom:4, opacity:dimmed?0.35:1, transition:'opacity .15s' }}>
-      <div onClick={onToggle} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--edge)', cursor:'pointer' }}>
-        <div style={{ width:22, height:22, borderRadius:'50%', background:char.color+'18', border:`1px solid ${char.color}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:char.color, fontWeight:500, flexShrink:0 }}>
-          {char.name?.charAt(0)}
-        </div>
-        <span style={{ fontSize:12, color:'var(--text)', fontWeight:400, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{char.name}</span>
-        <span style={{ fontSize:9, color:'var(--dim)' }}>{expanded?'▾':'▸'}</span>
-      </div>
-      {expanded && (
-        <div style={{ padding:'8px 0 4px 30px', fontSize:11, color:'var(--muted)', lineHeight:1.7, fontWeight:300 }} className="fade-in">
-          {char.goals && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Wants</b> — {char.goals.slice(0,90)}</div>}
-          {char.fears && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Fears</b> — {char.fears.slice(0,90)}</div>}
-          {char.voice && <div><b style={{ color:'var(--dim)', fontWeight:400 }}>Voice</b> — {char.voice.slice(0,90)}</div>}
-          {rels.length > 0 && (
-            <div style={{ marginTop:5 }}>
-              {rels.map(r => {
-                const otherId = r.character_a===char.id?r.character_b:r.character_a
-                const other   = characters.find(c=>c.id===otherId)
-                const color   = REL_COLORS[r.type]||'var(--muted)'
-                return (
-                  <div key={r.id} style={{ display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
-                    <div style={{ width:4, height:4, borderRadius:'50%', background:color, flexShrink:0 }}/>
-                    <span style={{ fontSize:10, color:'var(--dim)', fontWeight:300 }}>{other?.name}</span>
-                    <span style={{ fontSize:10, color, textTransform:'capitalize' }}>{r.type}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Pressure Test Card ─────────────────────────────────────────
-function PressureTestCard({ card, onClose }) {
-  if (card.loading) return (
-    <div className="lore-card" style={{ padding:20, display:'flex', alignItems:'center', gap:12 }}>
-      <Spinner/> <span style={{ fontSize:13, color:'var(--muted)', fontWeight:300 }}>Pressure testing…</span>
-    </div>
-  )
-  const v = VERDICT_STYLE[card.verdict] || VERDICT_STYLE.question
-  return (
-    <div className="lore-card">
-      <div className="lore-bar" style={{ background:v.color }}/>
-      <div className="lore-inner">
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
-          <div className="lore-eyebrow">Pressure Test — {card.character?.name}</div>
-          <button onClick={onClose} style={{ fontSize:10, color:'var(--dim)', cursor:'pointer', background:'none', border:'none', lineHeight:1 }}>✕</button>
-        </div>
-        {card.evidence && (
-          <div style={{ marginBottom:12 }}>
-            <div className="lore-label" style={{ marginBottom:6 }}>Evidence from the passage</div>
-            <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.6, fontWeight:300, padding:'8px 10px', borderLeft:`2px solid ${v.color}`, background:'rgba(255,255,255,.02)' }}>“{card.evidence}”</div>
-          </div>
-        )}
-        {card.question && (
-          <div style={{ fontSize:11, color:'var(--gold)', lineHeight:1.6, fontWeight:300, marginBottom:12 }}>
-            <b style={{ fontWeight:500 }}>Question for you:</b> {card.question}
-          </div>
-        )}
-        <div style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 12px', borderRadius:5, marginBottom:12, background:v.bg, border:`1px solid ${v.border}` }}>
-          <span style={{ fontSize:16 }}>{v.icon}</span>
-          <div>
-            <div style={{ fontSize:13, fontWeight:500, color:v.color }}>{v.label}</div>
-            <div style={{ fontSize:11, color:'var(--muted)', fontWeight:300, marginTop:1 }}>{card.summary}</div>
-          </div>
-        </div>
-        {card.rel && card.otherChar && (
-          <>
-            <div className="lore-label" style={{ marginBottom:6 }}>Relationship context</div>
-            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:5, background:'rgba(255,255,255,.02)', border:'1px solid var(--edge)', marginBottom:12 }}>
-              <div style={{ width:20, height:20, borderRadius:'50%', background:card.character.color+'18', border:`1px solid ${card.character.color}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:card.character.color, fontWeight:500 }}>{card.character.name?.charAt(0)}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:11, color:'var(--text)', fontWeight:400 }}>{card.character.name} &amp; {card.otherChar.name}</div>
-                <div style={{ fontSize:10, color:REL_COLORS[card.rel.type]||'var(--muted)', textTransform:'capitalize', fontWeight:300 }}>{card.rel.type} · tension {card.rel.tension}/100</div>
-              </div>
-              <div style={{ width:20, height:20, borderRadius:'50%', background:card.otherChar.color+'18', border:`1px solid ${card.otherChar.color}40`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:card.otherChar.color, fontWeight:500 }}>{card.otherChar.name?.charAt(0)}</div>
-            </div>
-          </>
-        )}
-        {card.notes?.length > 0 && (
-          <>
-            <div className="lore-divider"/>
-            <div className="lore-label" style={{ marginBottom:8 }}>Why</div>
-            {card.notes.map((n,i) => (
-              <div key={i} style={{ display:'flex', gap:8, marginBottom:8 }}>
-                <div style={{ width:4, height:4, borderRadius:'50%', background:v.color, flexShrink:0, marginTop:6 }}/>
-                <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.6, fontWeight:300 }}>
-                  <b style={{ color:'var(--text)', fontWeight:400, textTransform:'capitalize' }}>{n.type}: </b>{n.text}
+      {review && (
+        <Modal title={review.kind === 'pressure' ? `Pressure Test · ${review.character?.name}` : 'Story-integrity review'} onClose={() => setReview(null)}>
+          {review.kind === 'pressure' ? (
+            <>
+              <ReviewVerdict verdict={review.verdict} summary={review.summary} />
+              <Evidence evidence={review.evidence} />
+              {review.question && <p className="screenplay-question"><b>Question:</b> {review.question}</p>}
+              {(review.notes || []).map((note, index) => <p key={index}><b>{note.type}:</b> {note.text}</p>)}
+            </>
+          ) : review.shift_detected ? (
+            <>
+              <ReviewVerdict verdict="question" summary={review.summary} />
+              <Evidence evidence={review.evidence} />
+              {review.question && <p className="screenplay-question"><b>Question:</b> {review.question}</p>}
+              {(review.reasoning || []).map((reason, index) => <p key={index}>{index + 1}. {reason}</p>)}
+              {review.type === 'relationship_shift' && review.charA && review.charB && (
+                <div className="screenplay-confirm-row">
+                  <span>{review.charA.name} &amp; {review.charB.name}: {review.proposed_type} · {Math.round(review.proposed_tension || 0)}/100</span>
+                  <button className="btn btn-gold" onClick={confirmScan}>Confirm update</button>
                 </div>
-              </div>
+              )}
+            </>
+          ) : <ReviewVerdict verdict="pass" summary="No meaningful story-integrity concern was found in this selection." />}
+        </Modal>
+      )}
+
+      {titlePageOpen && (
+        <Modal title="Title Page" onClose={() => setTitlePageOpen(false)}>
+          <div className="screenplay-modal-fields">
+            <label>Title<input value={titlePage.title || ''} onChange={event => setTitlePage(value => ({ ...value, title:event.target.value }))} /></label>
+            <label>Written by<input value={titlePage.author || ''} onChange={event => setTitlePage(value => ({ ...value, author:event.target.value }))} /></label>
+            <label>Contact<textarea rows={3} value={titlePage.contact || ''} onChange={event => setTitlePage(value => ({ ...value, contact:event.target.value }))} /></label>
+            <label>Draft date<input value={titlePage.draftDate || ''} onChange={event => setTitlePage(value => ({ ...value, draftDate:event.target.value }))} /></label>
+            <button className="btn btn-gold" onClick={() => { titlePageRef.current = titlePage; queueSave(editor, titleRef.current, titlePage); setTitlePageOpen(false) }}>Save title page</button>
+          </div>
+        </Modal>
+      )}
+
+      {versionsOpen && (
+        <Modal title="Version History" onClose={() => setVersionsOpen(false)}>
+          {scriptVersions.length === 0 && <div className="screenplay-empty">No named versions saved yet.</div>}
+          <div className="screenplay-version-list">
+            {scriptVersions.map(version => (
+              <button key={version.id} onClick={() => restoreVersion(version)}>
+                <b>{version.label}</b><span>{new Date(version.created_at).toLocaleString()}</span>
+              </button>
             ))}
-          </>
-        )}
-      </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
 
-// ── Why Card ───────────────────────────────────────────────────
-function WhyCard({ whisper, relationships, onConfirm, onEdit, onClose }) {
-  const relationship = relationships.find(r =>
-    (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
-    (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
-  )
-  const subject = whisper.type === 'behavioral_contradiction'
-    ? whisper.charAName
-    : `${whisper.charAName} & ${whisper.charBName}`
+function Modal({ title, onClose, children }) {
   return (
-    <div className="lore-card" style={{ width:340 }} onClick={e => e.stopPropagation()}>
-      <div className="lore-bar" style={{ background:'linear-gradient(90deg, var(--gold), var(--gold-dim))' }}/>
-      <div className="lore-inner">
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-          <div className="lore-eyebrow">Living Bible — AI reasoning</div>
-          <button onClick={onClose} style={{ fontSize:10, color:'var(--dim)', cursor:'pointer', background:'none', border:'none' }}>✕</button>
-        </div>
-        <div className="lore-name">Why Anchor flagged {subject}</div>
-        <div className="lore-divider"/>
-        {whisper.evidence && (
-          <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.6, fontWeight:300, marginBottom:12, padding:'8px 10px', borderLeft:'2px solid var(--gold)', background:'rgba(255,255,255,.02)' }}>
-            “{whisper.evidence}”
-          </div>
-        )}
-        {whisper.reasoning.map((r,i) => (
-          <div key={i} style={{ display:'flex', gap:9, marginBottom:10 }}>
-            <span style={{ fontSize:10, color:'var(--gold)', fontWeight:500, flexShrink:0, marginTop:1 }}>{i+1}</span>
-            <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.6, fontWeight:300 }}>{r}</div>
-          </div>
-        ))}
-        <div className="lore-divider"/>
-        {/* What changes in the bible */}
-        {whisper.type === 'relationship_shift' ? (
-          <div style={{ marginBottom:14 }}>
-            <div style={{ fontSize:11, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.07em', fontWeight:500, marginBottom:8 }}>What will change in your bible</div>
-            <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(212,184,112,.06)', border:'1px solid rgba(212,184,112,.2)', borderRadius:6 }}>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:10, color:'var(--dim)', marginBottom:3 }}>Current</div>
-                <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, textTransform:'capitalize', textDecoration:'line-through' }}>
-                  {relationship ? `${relationship.type} · ${relationship.tension}/100` : 'Unknown'}
-                </div>
-              </div>
-              <span style={{ fontSize:18, color:'var(--gold)' }}>→</span>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:10, color:'var(--dim)', marginBottom:3 }}>New</div>
-                <div style={{ fontSize:14, color:'var(--gold)', fontWeight:600, textTransform:'capitalize' }}>
-                  {whisper.proposedType} · {whisper.proposedTension}/100
-                </div>
-              </div>
-            </div>
-            <div style={{ fontSize:11, color:'var(--dim)', marginTop:6, fontWeight:300 }}>
-              Ties That Bind map and relationship card will update.
-            </div>
-          </div>
-        ) : (
-          <div style={{ marginBottom:14, padding:'12px 14px', background:'rgba(255,255,255,.02)', border:'1px solid var(--edge)', borderRadius:6 }}>
-            <div style={{ fontSize:11, color:'var(--dim)', textTransform:'uppercase', letterSpacing:'.07em', fontWeight:500, marginBottom:6 }}>What will change in your bible</div>
-            <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, lineHeight:1.5 }}>
-              Nothing. The relationship status stays the same.
-            </div>
-            <div style={{ fontSize:11, color:'var(--dim)', marginTop:4, fontWeight:300 }}>
-              This is a behavioral note only — Anchor flagged it so you're aware. Confirming just closes this card.
-            </div>
-          </div>
-        )}
-        {whisper.question && (
-          <div style={{ fontSize:11, color:'var(--gold)', lineHeight:1.6, fontWeight:300, marginBottom:14 }}>
-            <b style={{ fontWeight:500 }}>Question for you:</b> {whisper.question}
-          </div>
-        )}
-        <div style={{ display:'flex', gap:8 }}>
-          <button className="btn btn-gold" style={{ flex:1, justifyContent:'center', fontSize:13 }} onClick={onConfirm}>
-            {whisper.type === 'relationship_shift' ? 'Update bible' : 'Got it'}
-          </button>
-          {whisper.type === 'relationship_shift' && (
-            <button className="btn btn-ghost" style={{ flex:1, justifyContent:'center', fontSize:13 }} onClick={onEdit}>Edit first</button>
-          )}
-        </div>
-      </div>
+    <div className="screenplay-modal-backdrop no-print" onMouseDown={onClose}>
+      <section className="screenplay-modal" onMouseDown={event => event.stopPropagation()}>
+        <header><h2>{title}</h2><button onClick={onClose}>✕</button></header>
+        <div>{children}</div>
+      </section>
     </div>
   )
 }
 
-function Dot() {
-  return <span style={{ display:'inline-block', width:5, height:5, borderRadius:'50%', background:'var(--gold)', opacity:0.5, animation:'pulse 1.2s ease-in-out infinite' }}/>
-}
-function Spinner() {
-  return <span style={{ display:'inline-block', width:11, height:11, borderRadius:'50%', border:'1.5px solid var(--edge)', borderTopColor:'var(--gold)', animation:'spin .7s linear infinite' }}/>
+function ReviewVerdict({ verdict, summary }) {
+  return <div className={`screenplay-verdict ${verdict || 'question'}`}><b>{verdict === 'pass' ? 'Pass' : verdict === 'concern' ? 'Possible concern' : 'Question'}</b><span>{summary}</span></div>
 }
 
-const REL_COLORS = { ally:'#3FB950', rival:'#F85149', romantic:'#DB61A2', family:'#58A6FF', mentor:'#D2A8FF', enemy:'#FF7B72', complicated:'#FFA657', stranger:'#6A6A88' }
+function Evidence({ evidence }) {
+  return evidence ? <blockquote className="screenplay-evidence">“{evidence}”</blockquote> : null
+}
