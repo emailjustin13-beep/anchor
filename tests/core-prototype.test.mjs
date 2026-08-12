@@ -31,12 +31,15 @@ test('Google is the primary sign-in path with email retained as a backup', async
 })
 
 test('same-user auth refreshes preserve and restore the open project', async () => {
-  const app = await read('components/App.js')
+  const [app, layout] = await Promise.all([read('components/App.js'), read('app/layout.js')])
   assert.match(app, /anchor-active-project:/)
+  assert.match(app, /searchParams\.set\('project', project\.id\)/)
+  assert.match(app, /new URLSearchParams\(window\.location\.search\)\.get\('project'\)/)
   assert.match(app, /previousUserId && previousUserId !== nextUserId/)
   assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
   assert.match(app, /onSelect=\{openProject\}/)
   assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
+  assert.match(layout, /Editor 0\.3\.1/)
 })
 
 test('every AI workflow uses a closed structured schema with evidence', async () => {

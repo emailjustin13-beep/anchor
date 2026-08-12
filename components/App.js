@@ -18,11 +18,17 @@ export default function App() {
 
   function openProject(project) {
     if (session?.user?.id) localStorage.setItem(projectStorageKey(session.user.id), project.id)
+    const url = new URL(window.location.href)
+    url.searchParams.set('project', project.id)
+    window.history.replaceState({}, '', url)
     setActive(project)
   }
 
   function exitProject() {
     if (session?.user?.id) localStorage.removeItem(projectStorageKey(session.user.id))
+    const url = new URL(window.location.href)
+    url.searchParams.delete('project')
+    window.history.replaceState({}, '', url)
     setActive(null)
   }
 
@@ -71,10 +77,18 @@ export default function App() {
     const nextProjects = error ? [] : (data || [])
     setProjects(nextProjects)
     if (restoreProject) {
+      const requestedId = new URLSearchParams(window.location.search).get('project')
       const rememberedId = localStorage.getItem(projectStorageKey(userId))
       setActive(current => {
-        const projectId = current?.id || rememberedId
-        return nextProjects.find(project => project.id === projectId) || null
+        const projectId = current?.id || requestedId || rememberedId
+        const restored = nextProjects.find(project => project.id === projectId) || null
+        if (restored) {
+          localStorage.setItem(projectStorageKey(userId), restored.id)
+          const url = new URL(window.location.href)
+          url.searchParams.set('project', restored.id)
+          window.history.replaceState({}, '', url)
+        }
+        return restored
       })
     }
     setLoading(false)
