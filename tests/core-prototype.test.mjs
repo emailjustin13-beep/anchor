@@ -21,6 +21,15 @@ test('AI credentials remain server-side and requests require a session', async (
   assert.match(route, /status: 401/)
 })
 
+test('Google is the primary sign-in path with email retained as a backup', async () => {
+  const auth = await read('components/AuthGate.js')
+  assert.match(auth, /signInWithOAuth/)
+  assert.match(auth, /provider:'google'/)
+  assert.match(auth, /Continue with Google/)
+  assert.match(auth, /Email backup/)
+  assert.match(auth, /redirectTo:window\.location\.origin/)
+})
+
 test('every AI workflow uses a closed structured schema with evidence', async () => {
   const ai = await read('lib/ai.js')
   const consumers = await Promise.all([
