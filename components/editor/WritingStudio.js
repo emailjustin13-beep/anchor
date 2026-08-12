@@ -36,6 +36,7 @@ import {
   emptyIssueLedger,
   ISSUE_LEDGER_VERSION,
   issueLedgerReview,
+  markResolvedIssuesForRecheck,
   mergeIssueLedger,
   reconcileDraftScanResult,
   setIssueLedgerStatus,
@@ -592,7 +593,8 @@ export default function WritingStudio({
     setReview(null)
     try {
       const normalizedDraft = normalizeFindingText(scriptText)
-      const ledgerDecisions = draftIssueLedger.issues
+      const ledgerForScan = markResolvedIssuesForRecheck(draftIssueLedger, scriptText)
+      const ledgerDecisions = ledgerForScan.issues
         .filter(issue => issue.status === 'dismissed')
         .map(issue => ({ ...issue, fingerprint:issue.fingerprint || findingFingerprint(issue) }))
       const activeDecisions = [...ledgerDecisions, ...legacyDecisionsRef.current].filter(decision =>
@@ -609,7 +611,7 @@ export default function WritingStudio({
         characterStateEvents,
         dismissedFindings:activeDecisions,
         storyMemory:currentMemory,
-        previousIssues:draftIssueLedger.issues,
+        previousIssues:ledgerForScan.issues,
         changedScenes:incremental ? changes.changedScenes : [],
         removedScenes:incremental ? changes.removedScenes : [],
         incremental,
@@ -621,7 +623,7 @@ export default function WritingStudio({
         profile:'draft_scan',
         timeoutMs:55000,
       })
-      const reconciledResult = reconcileDraftScanResult(result, draftIssueLedger.issues)
+      const reconciledResult = reconcileDraftScanResult(result, ledgerForScan.issues, scriptText)
       const scanResult = {
         ...reconciledResult,
         findings:(reconciledResult.findings || []).slice(0, 5).map(finding => ({
@@ -630,9 +632,10 @@ export default function WritingStudio({
           evidence:(finding.evidence || []).slice(0, 2),
         })),
         resolved_issue_ids:(reconciledResult.resolved_issue_ids || []).slice(0, 100),
+        issue_resolutions:(reconciledResult.issue_resolutions || []).slice(0, 100),
       }
       const nextLedger = mergeIssueLedger({
-        previousLedger:draftIssueLedger,
+        previousLedger:ledgerForScan,
         scanResult,
         memory:currentMemory,
         draftText:scriptText,
@@ -716,7 +719,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.4.3</span>
+          <span className="screenplay-studio-version">Studio 0.4.4</span>
           <input
             className="screenplay-title-input"
             value={title}

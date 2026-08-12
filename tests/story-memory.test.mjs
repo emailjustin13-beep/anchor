@@ -7,6 +7,7 @@ import {
   canReuseIssueLedger,
   diffStoryMemory,
   emptyIssueLedger,
+  markResolvedIssuesForRecheck,
   mergeIssueLedger,
   passesIntegrityDisplayGate,
   reconcileDraftScanResult,
@@ -275,13 +276,18 @@ test('Case 02 resolution wins over a duplicate finding and removing the bridge r
       issue_id:issueId,
       status:'resolved',
       decision_explanation:'The recorder and playback provide the information path.',
+      resolution_basis:'on_page_bridge',
+      resolution_evidence:[{
+        quote:'Kira plays the captured conversation through her earpiece.',
+        location:'INT. CITY HOSPITAL - CAFETERIA - NIGHT',
+      }],
       ...knowledgeFinding,
       plausible_inference:true,
       inference_explanation:'The recorder supplies a reasonable on-page bridge.',
     }],
     new_findings:[knowledgeFinding],
     overall:`The recorder resolves (${issueId}).`,
-  }, initialLedger.issues)
+  }, initialLedger.issues, recorderDraft)
   const resolvedLedger = mergeIssueLedger({
     previousLedger:initialLedger,
     scanResult:resolvedResult,
@@ -293,20 +299,26 @@ test('Case 02 resolution wins over a duplicate finding and removing the bridge r
   assert.deepEqual(resolvedResult.resolved_issue_ids, [issueId])
   assert.equal(resolvedLedger.issues.length, 1)
   assert.equal(resolvedLedger.issues[0].status, 'resolved')
+  assert.equal(resolvedLedger.issues[0].resolutionBasis, 'on_page_bridge')
   assert.doesNotMatch(resolvedLedger.overall, /issue:/)
+
+  const pendingLedger = markResolvedIssuesForRecheck(resolvedLedger, originalDraft)
+  assert.equal(pendingLedger.issues[0].status, 'pending_recheck')
 
   const reopenedResult = reconcileDraftScanResult({
     existing_issue_decisions:[{
       issue_id:issueId,
-      status:'still_open',
+      status:'reopened',
       decision_explanation:'The recorder bridge was removed.',
+      resolution_basis:'not_applicable',
+      resolution_evidence:[],
       ...knowledgeFinding,
     }],
     new_findings:[],
     overall:'The knowledge conflict returned.',
-  }, resolvedLedger.issues)
+  }, pendingLedger.issues, originalDraft)
   const reopenedLedger = mergeIssueLedger({
-    previousLedger:resolvedLedger,
+    previousLedger:pendingLedger,
     scanResult:reopenedResult,
     memory:originalMemory,
     draftText:originalDraft,
@@ -315,4 +327,55 @@ test('Case 02 resolution wins over a duplicate finding and removing the bridge r
   assert.equal(reopenedLedger.issues.length, 1)
   assert.equal(reopenedLedger.issues[0].id, issueId)
   assert.equal(reopenedLedger.issues[0].status, 'open')
+})
+
+test('Case 02 repairs a false resolved decision after its supporting bridge disappears', () => {
+  const originalDraft = `[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]${knowledgeFinding.evidence[0].quote}\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[dialogue]${knowledgeFinding.evidence[1].quote}`
+  const originalMemory = buildStoryMemory(legacyToDocument(originalDraft))
+  const initialLedger = mergeIssueLedger({
+    previousLedger:emptyIssueLedger(),
+    scanResult:{ findings:[knowledgeFinding], resolved_issue_ids:[], overall:'Initial issue.' },
+    memory:originalMemory,
+    draftText:originalDraft,
+  })
+  const issueId = initialLedger.issues[0].id
+  const recorderLine = 'Kira plays the captured conversation through her earpiece.'
+  const recorderDraft = `${originalDraft}\n[action]${recorderLine}`
+  const recorderMemory = buildStoryMemory(legacyToDocument(recorderDraft))
+  const resolvedLedger = mergeIssueLedger({
+    previousLedger:initialLedger,
+    scanResult:{
+      findings:[],
+      resolved_issue_ids:[issueId],
+      issue_resolutions:[{
+        issue_id:issueId,
+        resolution_basis:'on_page_bridge',
+        resolution_evidence:[{ quote:recorderLine, location:'INT. CITY HOSPITAL - CAFETERIA - NIGHT' }],
+        decision_explanation:'The recorder supplies the knowledge path.',
+      }],
+      overall:'Resolved.',
+    },
+    memory:recorderMemory,
+    draftText:recorderDraft,
+  })
+  const pendingLedger = markResolvedIssuesForRecheck(resolvedLedger, originalDraft)
+
+  const repaired = reconcileDraftScanResult({
+    existing_issue_decisions:[{
+      issue_id:issueId,
+      status:'resolved',
+      decision_explanation:'Perhaps Kira overheard it off-screen.',
+      resolution_basis:'intentional_mystery',
+      resolution_evidence:[knowledgeFinding.evidence[1]],
+      ...knowledgeFinding,
+    }],
+    new_findings:[],
+    active_issue_ids:[issueId],
+    overall:'The knowledge gap is active again, but no questions were returned.',
+  }, pendingLedger.issues, originalDraft)
+
+  assert.equal(repaired.findings.length, 1)
+  assert.equal(repaired.findings[0].previous_issue_id, issueId)
+  assert.equal(repaired.resolved_issue_ids.length, 0)
+  assert.equal(repaired.repaired_decision_count, 1)
 })
