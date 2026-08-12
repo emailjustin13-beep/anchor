@@ -212,6 +212,7 @@ label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); 
 .screenplay-draft-summary small { color:var(--dim); margin-top:3px; }
 .screenplay-draft-findings { display:flex; flex-direction:column; gap:12px; }
 .screenplay-draft-finding { padding:14px; border:1px solid var(--edge); border-radius:8px; background:var(--s2); }
+.screenplay-draft-finding.reviewed { opacity:.72; }
 .screenplay-draft-finding > header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .screenplay-draft-finding > header span { color:var(--gold); font-size:10px; letter-spacing:1.2px; text-transform:uppercase; }
 .screenplay-draft-finding > header i { padding:2px 7px; border-radius:999px; color:var(--dim); background:var(--s3); font-size:9px; font-style:normal; text-transform:uppercase; }
@@ -221,6 +222,21 @@ label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); 
 .screenplay-draft-finding p { margin:6px 0; }
 .screenplay-draft-finding .screenplay-evidence { display:flex; flex-direction:column; gap:3px; }
 .screenplay-draft-finding .screenplay-evidence cite { color:var(--dim); font-size:9px; font-style:normal; text-transform:uppercase; }
+.screenplay-draft-finding .screenplay-evidence button { align-self:flex-start; margin-top:5px; color:var(--gold); font-size:10px; font-style:normal; }
+.screenplay-draft-finding .screenplay-evidence button:hover { color:var(--gold2); }
+.screenplay-possibilities { margin-top:10px; padding:9px 11px; border:1px solid var(--edge); border-radius:6px; background:rgba(255,255,255,.015); }
+.screenplay-possibilities summary { cursor:pointer; color:var(--muted); }
+.screenplay-possibilities ul { margin:8px 0 0; padding-left:18px; }
+.screenplay-possibilities li { margin:4px 0; }
+.screenplay-finding-actions { display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:10px; border-top:1px solid var(--edge); }
+.screenplay-finding-actions button { padding:5px 9px; border:1px solid var(--edge2); border-radius:5px; color:var(--text); font-size:10px; }
+.screenplay-finding-actions button:hover { border-color:var(--gold-dim); color:var(--gold); }
+.screenplay-finding-actions span { color:var(--dim); font-size:9px; }
+.screenplay-reviewed-findings { margin-top:14px; padding-top:12px; border-top:1px solid var(--edge); }
+.screenplay-reviewed-findings > button, .screenplay-reset-decisions { color:var(--muted); font-size:10px; }
+.screenplay-reviewed-findings > button:hover, .screenplay-reset-decisions:hover { color:var(--gold); }
+.screenplay-reviewed-findings .screenplay-draft-findings { margin-top:10px; }
+.screenplay-reset-decisions { margin-top:12px; }
 
 @media (max-width: 1100px) {
   .screenplay-scenes { width:170px; flex-basis:170px; }

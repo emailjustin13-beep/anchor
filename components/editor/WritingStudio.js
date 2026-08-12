@@ -28,6 +28,7 @@ import {
 } from '../../lib/screenplay'
 import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
+import { findEvidenceRange, findingFingerprint, normalizeFindingText } from '../../lib/draftReview'
 
 const REL_COLORS = { ally:'#3FB950', rival:'#F85149', romantic:'#DB61A2', family:'#58A6FF', mentor:'#D2A8FF', enemy:'#FF7B72', complicated:'#FFA657', stranger:'#6A6A88' }
 const DRAFT_CATEGORY_LABELS = {
@@ -151,6 +152,7 @@ export default function WritingStudio({
   const [aiBusy, setAiBusy] = useState('')
   const [review, setReview] = useState(null)
   const [message, setMessage] = useState('')
+  const [draftFindingDecisions, setDraftFindingDecisions] = useState([])
 
   const saveTimer = useRef(null)
   const importRef = useRef(null)
@@ -160,10 +162,53 @@ export default function WritingStudio({
   const titlePageRef = useRef(titlePage)
   const saveFnRef = useRef(onSaveScript)
   const recoveryKey = `anchor-recovery:${project.id}`
+  const draftDecisionKey = `anchor-draft-decisions:${project.id}`
 
   useEffect(() => { titleRef.current = title }, [title])
   useEffect(() => { titlePageRef.current = titlePage }, [titlePage])
   useEffect(() => { saveFnRef.current = onSaveScript }, [onSaveScript])
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(draftDecisionKey) || '[]')
+      setDraftFindingDecisions(Array.isArray(saved) ? saved : [])
+    } catch {
+      setDraftFindingDecisions([])
+    }
+  }, [draftDecisionKey])
+
+  function updateDraftFindingDecisions(updater) {
+    setDraftFindingDecisions(current => {
+      const next = updater(current).slice(-100)
+      try {
+        localStorage.setItem(draftDecisionKey, JSON.stringify(next))
+      } catch {
+        setMessage('This review decision could not be saved in this browser.')
+      }
+      return next
+    })
+  }
+
+  function dismissDraftFinding(finding) {
+    const fingerprint = finding.fingerprint || findingFingerprint(finding)
+    updateDraftFindingDecisions(current => [
+      ...current.filter(item => item.fingerprint !== fingerprint),
+      {
+        fingerprint,
+        category:finding.category,
+        title:finding.title,
+        evidence:(finding.evidence || []).slice(0, 2),
+        dismissedAt:new Date().toISOString(),
+      },
+    ])
+  }
+
+  function restoreDraftFinding(fingerprint) {
+    updateDraftFindingDecisions(current => current.filter(item => item.fingerprint !== fingerprint))
+  }
+
+  function clearDraftFindingDecisions() {
+    updateDraftFindingDecisions(() => [])
+  }
 
   function queueSave(editorInstance, nextTitle = titleRef.current, nextTitlePage = titlePageRef.current) {
     if (!editorInstance) return
@@ -475,11 +520,44 @@ export default function WritingStudio({
     setAiBusy('Auditing draft')
     setReview(null)
     try {
-      const prompt = buildDraftScanPrompt({ scriptText, characters, relationships, relationshipEvents, characterStateEvents })
+      const normalizedDraft = normalizeFindingText(scriptText)
+      const activeDecisions = draftFindingDecisions.filter(decision =>
+        (decision.evidence || []).some(item => {
+          const quote = normalizeFindingText(item.quote)
+          return quote.length >= 12 && normalizedDraft.includes(quote)
+        })
+      )
+      const prompt = buildDraftScanPrompt({
+        scriptText,
+        characters,
+        relationships,
+        relationshipEvents,
+        characterStateEvents,
+        dismissedFindings:activeDecisions,
+      })
       const result = await callAI({ ...prompt, schema:DRAFT_SCAN_SCHEMA, maxTokens:5000 })
-      setReview({ kind:'draft', findings:(result.findings || []).slice(0, 5), overall:result.overall || '' })
+      const findings = (result.findings || []).slice(0, 5).map(finding => ({
+        ...finding,
+        possibilities:(finding.possibilities || []).slice(0, 2),
+        evidence:(finding.evidence || []).slice(0, 2),
+        fingerprint:findingFingerprint(finding),
+      }))
+      setReview({ kind:'draft', findings, overall:result.overall || '' })
     } catch (error) { setMessage('Draft scan failed: ' + error.message) }
     setAiBusy('')
+  }
+
+  function jumpToDraftEvidence(evidence) {
+    const range = findEvidenceRange(editor, evidence)
+    if (!range) {
+      setMessage(`Could not locate that exact text${evidence?.location ? ` in ${evidence.location}` : ''}.`)
+      return
+    }
+    setReview(null)
+    requestAnimationFrame(() => {
+      editor.chain().focus().setTextSelection({ from:range.from, to:range.to }).scrollIntoView().run()
+      setMessage(`Jumped to ${evidence.location || 'the cited text'}.`)
+    })
   }
 
   async function confirmScan() {
@@ -536,7 +614,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.3.6</span>
+          <span className="screenplay-studio-version">Studio 0.3.7</span>
           <input
             className="screenplay-title-input"
             value={title}
@@ -652,7 +730,14 @@ export default function WritingStudio({
               {(review.notes || []).map((note, index) => <p key={index}><b>{note.type}:</b> {note.text}</p>)}
             </>
           ) : review.kind === 'draft' ? (
-            <DraftReview review={review} />
+            <DraftReview
+              review={review}
+              decisions={draftFindingDecisions}
+              onDismiss={dismissDraftFinding}
+              onRestore={restoreDraftFinding}
+              onClearDecisions={clearDraftFindingDecisions}
+              onJump={jumpToDraftEvidence}
+            />
           ) : review.shift_detected ? (
             <>
               <ReviewVerdict verdict="question" summary={review.summary} />
@@ -698,7 +783,12 @@ export default function WritingStudio({
   )
 }
 
-function DraftReview({ review }) {
+function DraftReview({ review, decisions, onDismiss, onRestore, onClearDecisions, onJump }) {
+  const [showReviewed, setShowReviewed] = useState(false)
+  const decisionIds = new Set(decisions.map(item => item.fingerprint))
+  const activeFindings = review.findings.filter(finding => !decisionIds.has(finding.fingerprint))
+  const reviewedFindings = review.findings.filter(finding => decisionIds.has(finding.fingerprint))
+
   if (review.findings.length === 0) {
     return <ReviewVerdict verdict="pass" summary={review.overall || 'No meaningful story-integrity concern was found in this draft.'} />
   }
@@ -706,30 +796,66 @@ function DraftReview({ review }) {
   return (
     <>
       <div className="screenplay-draft-summary">
-        <b>{review.findings.length} question{review.findings.length === 1 ? '' : 's'} to review</b>
+        <b>{activeFindings.length === 0 ? 'All returned questions have been reviewed' : `${activeFindings.length} question${activeFindings.length === 1 ? '' : 's'} to review`}</b>
         <span>{review.overall || 'Anchor compared the complete draft with the confirmed Story Bible.'}</span>
-        <small>Review only — nothing here changes your Story Bible.</small>
+        <small>Review only — nothing here changes your Story Bible. Decisions apply only to the cited evidence.</small>
       </div>
       <div className="screenplay-draft-findings">
-        {review.findings.map((finding, index) => (
-          <article className="screenplay-draft-finding" key={`${finding.category}-${index}`}>
-            <header>
-              <span>{DRAFT_CATEGORY_LABELS[finding.category] || finding.category}</span>
-              <i className={`priority-${finding.priority}`}>{finding.priority}</i>
-            </header>
-            <h3>{finding.title}</h3>
-            <p>{finding.summary}</p>
-            {(finding.evidence || []).slice(0, 2).map((item, evidenceIndex) => (
-              <blockquote className="screenplay-evidence" key={evidenceIndex}>
-                “{item.quote}”
-                {item.location && <cite>{item.location}</cite>}
-              </blockquote>
-            ))}
-            {finding.question && <p className="screenplay-question"><b>Question:</b> {finding.question}</p>}
-          </article>
+        {activeFindings.map(finding => (
+          <DraftFindingCard finding={finding} key={finding.fingerprint} onDismiss={onDismiss} onJump={onJump} />
         ))}
       </div>
+      {reviewedFindings.length > 0 && (
+        <div className="screenplay-reviewed-findings">
+          <button onClick={() => setShowReviewed(value => !value)}>
+            {showReviewed ? 'Hide' : 'Show'} reviewed findings ({reviewedFindings.length})
+          </button>
+          {showReviewed && (
+            <div className="screenplay-draft-findings">
+              {reviewedFindings.map(finding => (
+                <DraftFindingCard finding={finding} key={finding.fingerprint} reviewed onRestore={onRestore} onJump={onJump} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {decisions.length > 0 && (
+        <button className="screenplay-reset-decisions" onClick={onClearDecisions}>Reset all “Not a problem” decisions</button>
+      )}
     </>
+  )
+}
+
+function DraftFindingCard({ finding, reviewed = false, onDismiss, onRestore, onJump }) {
+  return (
+    <article className={`screenplay-draft-finding${reviewed ? ' reviewed' : ''}`}>
+      <header>
+        <span>{DRAFT_CATEGORY_LABELS[finding.category] || finding.category}</span>
+        <i className={`priority-${finding.priority}`}>{finding.priority}</i>
+      </header>
+      <h3>{finding.title}</h3>
+      <p>{finding.summary}</p>
+      {(finding.evidence || []).slice(0, 2).map((item, evidenceIndex) => (
+        <blockquote className="screenplay-evidence" key={evidenceIndex}>
+          “{item.quote}”
+          {item.location && <cite>{item.location}</cite>}
+          <button onClick={() => onJump(item)}>Go to text →</button>
+        </blockquote>
+      ))}
+      {finding.question && <p className="screenplay-question"><b>Question:</b> {finding.question}</p>}
+      {(finding.possibilities || []).length > 0 && (
+        <details className="screenplay-possibilities">
+          <summary>Possible interpretations ({Math.min(finding.possibilities.length, 2)})</summary>
+          <ul>{finding.possibilities.slice(0, 2).map((item, index) => <li key={index}>{item}</li>)}</ul>
+        </details>
+      )}
+      <div className="screenplay-finding-actions">
+        {reviewed
+          ? <button onClick={() => onRestore(finding.fingerprint)}>Restore question</button>
+          : <button onClick={() => onDismiss(finding)}>✓ Not a problem</button>}
+        <span>{reviewed ? 'Anchor will ignore this exact evidence conflict.' : 'Hide this exact conflict on future scans.'}</span>
+      </div>
+    </article>
   )
 }
 
