@@ -38,6 +38,18 @@ test('temporary AI overloads retry safely and First Read cannot double-submit', 
   assert.match(firstRead, /status\.anthropic\.com/)
 })
 
+test('successful HTTP responses are checked for empty, truncated, and refused generations', async () => {
+  const route = await read('app/api/ai/route.js')
+  assert.match(route, /requestAnthropicMessage/)
+  assert.match(route, /data\.stop_reason === 'refusal'/)
+  assert.match(route, /ANTHROPIC_FALLBACK_MODEL/)
+  assert.match(route, /claude-haiku-4-5-20251001/)
+  assert.match(route, /data\.stop_reason === 'max_tokens'/)
+  assert.match(route, /AI_INCOMPLETE_RESPONSE/)
+  assert.match(route, /AI_EMPTY_RESPONSE/)
+  assert.match(route, /Anchor received a blank AI response twice/)
+})
+
 test('draft scan is a multi-finding audit distinct from the scene scan', async () => {
   const [ai, editor] = await Promise.all([
     read('lib/ai.js'),
@@ -83,7 +95,7 @@ test('same-user auth refreshes preserve and restore the open project', async () 
   assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
   assert.match(app, /onSelect=\{openProject\}/)
   assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
-  assert.match(layout, /Editor 0\.3\.7 Clean/)
+  assert.match(layout, /Editor 0\.3\.8 Clean/)
 })
 
 test('every AI workflow uses a closed structured schema with evidence', async () => {

@@ -48,6 +48,54 @@ async function requestAnthropic(key, body) {
   throw lastNetworkError || new Error('Anchor AI could not be reached.')
 }
 
+function messageText(data) {
+  return data?.content?.find(block => block.type === 'text')?.text?.trim() || ''
+}
+
+function completeMessageText(data) {
+  if (['refusal', 'max_tokens', 'model_context_window_exceeded'].includes(data?.stop_reason)) return ''
+  return messageText(data)
+}
+
+async function readSuccessfulMessage(response) {
+  return response.ok ? response.json().catch(() => ({})) : null
+}
+
+async function requestAnthropicMessage(key, body) {
+  let response = await requestAnthropic(key, body)
+  let data = await readSuccessfulMessage(response)
+  if (!response.ok) return { response, data, text:'' }
+
+  const completeText = completeMessageText(data)
+  if (completeText) {
+    return { response, data, text:completeText }
+  }
+
+  if (data.stop_reason === 'refusal') {
+    const fallbackModel = process.env.ANTHROPIC_FALLBACK_MODEL || 'claude-haiku-4-5-20251001'
+    if (fallbackModel !== body.model) {
+      response = await requestAnthropic(key, { ...body, model:fallbackModel })
+      data = await readSuccessfulMessage(response)
+      return { response, data, text:completeMessageText(data) }
+    }
+  }
+
+  if (data.stop_reason === 'max_tokens' && body.max_tokens < 10000) {
+    response = await requestAnthropic(key, { ...body, max_tokens:Math.min(body.max_tokens * 2, 10000) })
+    data = await readSuccessfulMessage(response)
+    return { response, data, text:completeMessageText(data) }
+  }
+
+  if (!completeText && !['refusal', 'model_context_window_exceeded'].includes(data.stop_reason)) {
+    await wait(500)
+    response = await requestAnthropic(key, body)
+    data = await readSuccessfulMessage(response)
+    return { response, data, text:completeMessageText(data) }
+  }
+
+  return { response, data, text:'' }
+}
+
 async function getUser(request) {
   const authorization = request.headers.get('authorization') || ''
   if (!authorization.startsWith('Bearer ')) return null
@@ -108,7 +156,8 @@ export async function POST(request) {
       }
     }
 
-    const response = await requestAnthropic(key, body)
+    const message = await requestAnthropicMessage(key, body)
+    const { response } = message
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
@@ -140,9 +189,39 @@ export async function POST(request) {
       )
     }
 
-    const data = await response.json()
-    const text = data.content?.find(block => block.type === 'text')?.text
-    if (!text) return NextResponse.json({ error: 'Anchor received an empty AI response.' }, { status: 502 })
+    const { data, text } = message
+    if (!text) {
+      if (data?.stop_reason === 'refusal') {
+        return NextResponse.json(
+          {
+            error: 'The AI provider declined this scan. Your screenplay is safe. Try again or review a smaller section.',
+            code: 'AI_REFUSAL',
+            retryable: false,
+          },
+          { status: 422 }
+        )
+      }
+
+      if (['max_tokens', 'model_context_window_exceeded'].includes(data?.stop_reason)) {
+        return NextResponse.json(
+          {
+            error: 'The AI response was cut off before the review finished. Your screenplay is safe. Try scanning a smaller draft section.',
+            code: 'AI_INCOMPLETE_RESPONSE',
+            retryable: true,
+          },
+          { status: 502 }
+        )
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Anchor received a blank AI response twice. Your screenplay is safe. Please try again.',
+          code: 'AI_EMPTY_RESPONSE',
+          retryable: true,
+        },
+        { status: 502 }
+      )
+    }
 
     if (schema) {
       try {

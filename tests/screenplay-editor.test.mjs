@@ -59,6 +59,6 @@ test('writer utilities include navigation, search, autocomplete and mobile light
   assert.match(editor, /\(V\.O\.\)/)
   assert.match(editor, /\(O\.S\.\)/)
   assert.match(editor, /CONT’D/)
-  assert.match(editor, /Studio 0\.3\.7/)
+  assert.match(editor, /Studio 0\.3\.8/)
   assert.match(css, /@media \(max-width: 820px\)/)
 })
