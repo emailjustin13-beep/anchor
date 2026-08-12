@@ -49,7 +49,6 @@ export default function App() {
 
       if (!nextUserId) {
         userIdRef.current = null
-        setActive(null)
         setProjects([])
         setLoading(false)
         return

@@ -5,7 +5,7 @@ import test from 'node:test'
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('AI runs only after an explicit writer action', async () => {
-  const editor = await read('components/editor/WritingEditor.js')
+  const editor = await read('components/editor/WritingStudio.js')
   assert.match(editor, /Scan Scene/)
   assert.match(editor, /Scan Draft/)
   assert.doesNotMatch(editor, /setTimeout\([^)]*runLivingScan/s)
@@ -39,7 +39,7 @@ test('same-user auth refreshes preserve and restore the open project', async () 
   assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
   assert.match(app, /onSelect=\{openProject\}/)
   assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
-  assert.match(layout, /Editor 0\.3\.1/)
+  assert.match(layout, /Editor 0\.3\.2/)
 })
 
 test('every AI workflow uses a closed structured schema with evidence', async () => {
@@ -47,7 +47,7 @@ test('every AI workflow uses a closed structured schema with evidence', async ()
   const consumers = await Promise.all([
     read('components/bible/FirstRead.js'),
     read('components/bible/BibleDashboard.js'),
-    read('components/editor/WritingEditor.js'),
+    read('components/editor/WritingStudio.js'),
   ])
   assert.match(ai, /PRESSURE_TEST_SCHEMA/)
   assert.match(ai, /RELATIONSHIP_SCAN_SCHEMA/)

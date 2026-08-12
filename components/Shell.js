@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import BibleDashboard    from './bible/BibleDashboard'
 import CharactersModule  from './bible/CharactersModule'
 import TiesThatBind      from './bible/TiesThatBind'
-import WritingEditor     from './editor/WritingEditor'
+import WritingStudio     from './editor/WritingStudio'
 import Onboarding        from './shared/Onboarding'
 
 const NAV = [
@@ -213,7 +213,7 @@ export default function Shell({ project, onExit, onSignOut }) {
             {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onNavigate={setModule} pulseCache={pulseCache} setPulseCache={setPulseCache} pulseScriptId={pulseScriptId} setPulseScriptId={setPulseScriptId} />}
             {module === 'characters' && <CharactersModule  {...shared} {...charOps} />}
             {module === 'ties'       && <TiesThatBind      {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onDeleteRelationshipEvent={deleteRelationshipEvent} />}
-            {module === 'write'      && <WritingEditor     {...shared} onSaveScript={saveScript} onCreateScriptVersion={createScriptVersion} onCreateRelationship={createRelationship} onUpdateRelationship={updateRelationship} onCreateRelationshipEvent={createRelationshipEvent} onReload={loadAll} />}
+            {module === 'write'      && <WritingStudio     {...shared} onSaveScript={saveScript} onCreateScriptVersion={createScriptVersion} onCreateRelationship={createRelationship} onUpdateRelationship={updateRelationship} onCreateRelationshipEvent={createRelationshipEvent} onReload={loadAll} />}
           </>
         )}
       </main>

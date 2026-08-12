@@ -21,7 +21,7 @@ test('the editor exposes the eight standard screenplay elements and keyboard flo
 test('screenplay files support FDX import/export, TXT export, title pages and print-to-PDF', async () => {
   const [model, editor, css] = await Promise.all([
     read('lib/screenplay.js'),
-    read('components/editor/WritingEditor.js'),
+    read('components/editor/WritingStudio.js'),
     read('app/globals.css'),
   ])
   assert.match(model, /<FinalDraft/)
@@ -35,7 +35,7 @@ test('screenplay files support FDX import/export, TXT export, title pages and pr
 
 test('draft recovery and owned version history are persisted', async () => {
   const [editor, shell, schema, migration] = await Promise.all([
-    read('components/editor/WritingEditor.js'),
+    read('components/editor/WritingStudio.js'),
     read('components/Shell.js'),
     read('supabase-schema.sql'),
     read('supabase-migration-core-prototype.sql'),
@@ -51,7 +51,7 @@ test('draft recovery and owned version history are persisted', async () => {
 
 test('writer utilities include navigation, search, autocomplete and mobile light editing', async () => {
   const [editor, css] = await Promise.all([
-    read('components/editor/WritingEditor.js'),
+    read('components/editor/WritingStudio.js'),
     read('app/globals.css'),
   ])
   assert.match(editor, /Scenes/)

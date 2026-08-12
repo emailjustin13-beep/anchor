@@ -100,7 +100,7 @@ function findCharacterBeforeSelection(editor, characters) {
   return characters.find(character => character.name.toLowerCase() === name.toLowerCase()) || characters[0]
 }
 
-export default function WritingEditor({
+export default function WritingStudio({
   project,
   script,
   characters,
