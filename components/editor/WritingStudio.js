@@ -30,7 +30,6 @@ import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
 import { findEvidenceRange, findingFingerprint, normalizeFindingText } from '../../lib/draftReview'
 import {
-  applyAudienceInferenceGate,
   buildStoryMemory,
   canReuseIssueLedger,
   diffStoryMemory,
@@ -38,6 +37,7 @@ import {
   ISSUE_LEDGER_VERSION,
   issueLedgerReview,
   mergeIssueLedger,
+  reconcileDraftScanResult,
   setIssueLedgerStatus,
 } from '../../lib/storyMemory'
 
@@ -621,15 +621,15 @@ export default function WritingStudio({
         profile:'draft_scan',
         timeoutMs:55000,
       })
-      const gatedResult = applyAudienceInferenceGate(result, draftIssueLedger.issues)
+      const reconciledResult = reconcileDraftScanResult(result, draftIssueLedger.issues)
       const scanResult = {
-        ...gatedResult,
-        findings:(gatedResult.findings || []).slice(0, 5).map(finding => ({
+        ...reconciledResult,
+        findings:(reconciledResult.findings || []).slice(0, 5).map(finding => ({
           ...finding,
           possibilities:(finding.possibilities || []).slice(0, 2),
           evidence:(finding.evidence || []).slice(0, 2),
         })),
-        resolved_issue_ids:(gatedResult.resolved_issue_ids || []).slice(0, 100),
+        resolved_issue_ids:(reconciledResult.resolved_issue_ids || []).slice(0, 100),
       }
       const nextLedger = mergeIssueLedger({
         previousLedger:draftIssueLedger,
@@ -716,7 +716,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.4.2</span>
+          <span className="screenplay-studio-version">Studio 0.4.3</span>
           <input
             className="screenplay-title-input"
             value={title}
@@ -908,7 +908,7 @@ function DraftReview({ review, onDismiss, onRestore, onClearDecisions, onJump })
   return (
     <>
       <div className="screenplay-draft-summary">
-        <b>{activeFindings.length === 0 ? 'All returned questions have been reviewed' : `${activeFindings.length} question${activeFindings.length === 1 ? '' : 's'} to review`}</b>
+        <b>{activeFindings.length === 0 ? 'No active questions' : `${activeFindings.length} question${activeFindings.length === 1 ? '' : 's'} to review`}</b>
         <span>{review.overall || 'Anchor compared the complete draft with the confirmed Story Bible.'}</span>
         <small className="screenplay-scan-source">{scanLabel}</small>
         <small>Review only — nothing here changes your Story Bible. Decisions apply only to the cited evidence.</small>

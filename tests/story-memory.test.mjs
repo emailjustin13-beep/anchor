@@ -8,6 +8,8 @@ import {
   diffStoryMemory,
   emptyIssueLedger,
   mergeIssueLedger,
+  passesIntegrityDisplayGate,
+  reconcileDraftScanResult,
   setIssueLedgerStatus,
 } from '../lib/storyMemory.js'
 
@@ -193,4 +195,124 @@ test('reasonable audience inference suppresses a candidate and resolves its ledg
   assert.equal(gated.findings.length, 0)
   assert.deepEqual(gated.resolved_issue_ids, [issueId])
   assert.equal(gated.suppressed_inference_count, 1)
+})
+
+const knowledgeFinding = {
+  category:'continuity',
+  priority:'high',
+  title:'Kira knows the private transfer details',
+  summary:'Kira uses information she was not present to hear and could not read from Marcus’s palm.',
+  question:'How did Kira learn the entrance and password?',
+  integrity_basis:'unsupported_knowledge',
+  conflicting_fact_a:'Kira was absent and could not read Marcus’s palm.',
+  conflicting_fact_b:'Kira later states both the entrance and password.',
+  plausible_inference:false,
+  inference_explanation:'The original draft supplies no evidence-supported path for the information.',
+  possibilities:[],
+  characters:['Kira', 'Marcus'],
+  evidence:[
+    { quote:'Kira studies the writing on Marcus’s palm, but his hand closes before she can read it.', location:'INT. CITY HOSPITAL - CAFETERIA - NIGHT' },
+    { quote:'When the driver arrives, ask for the word “bluebird.”', location:'INT. CITY HOSPITAL - SECURITY DESK - LATER' },
+  ],
+}
+
+const folderMystery = {
+  ...knowledgeFinding,
+  title:'The red folder is missing',
+  integrity_basis:'intentional_mystery',
+  conflicting_fact_a:'The folder was placed in a safe.',
+  conflicting_fact_b:'The folder is later gone.',
+  evidence:[
+    { quote:'Lena places the red folder inside a wall safe.', location:'INT. CITY HOSPITAL - RECORDS ROOM - NIGHT' },
+    { quote:'The red folder is gone.', location:'INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER' },
+  ],
+}
+
+const weakCharacterCommentary = {
+  ...knowledgeFinding,
+  category:'character',
+  priority:'low',
+  title:'Kira tells Daniels the transfer details',
+  integrity_basis:'general_craft',
+  conflicting_fact_a:'Kira knows confidential information.',
+  conflicting_fact_b:'Kira tells a security officer.',
+}
+
+test('Case 02 initial scan displays unsupported knowledge but suppresses mystery and motivation commentary', () => {
+  const reconciled = reconcileDraftScanResult({
+    existing_issue_decisions:[],
+    new_findings:[knowledgeFinding, folderMystery, weakCharacterCommentary],
+    overall:'One supported knowledge conflict.',
+  })
+
+  assert.equal(reconciled.findings.length, 1)
+  assert.equal(reconciled.findings[0].title, knowledgeFinding.title)
+  assert.equal(reconciled.suppressed_finding_count, 2)
+  assert.equal(passesIntegrityDisplayGate(folderMystery), false)
+  assert.equal(passesIntegrityDisplayGate(weakCharacterCommentary), false)
+})
+
+test('Case 02 resolution wins over a duplicate finding and removing the bridge reopens the same issue', () => {
+  const originalDraft = `[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]${knowledgeFinding.evidence[0].quote}\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[dialogue]${knowledgeFinding.evidence[1].quote}`
+  const originalMemory = buildStoryMemory(legacyToDocument(originalDraft))
+  const initialResult = reconcileDraftScanResult({
+    existing_issue_decisions:[],
+    new_findings:[knowledgeFinding],
+    overall:'Kira’s knowledge has no on-page bridge.',
+  })
+  const initialLedger = mergeIssueLedger({
+    previousLedger:emptyIssueLedger(),
+    scanResult:initialResult,
+    memory:originalMemory,
+    draftText:originalDraft,
+  })
+  const issueId = initialLedger.issues[0].id
+
+  const recorderDraft = `${originalDraft}\n[action]A recorder blinks beneath the records cart. Kira plays the captured conversation through her earpiece.`
+  const recorderMemory = buildStoryMemory(legacyToDocument(recorderDraft))
+  const resolvedResult = reconcileDraftScanResult({
+    existing_issue_decisions:[{
+      issue_id:issueId,
+      status:'resolved',
+      decision_explanation:'The recorder and playback provide the information path.',
+      ...knowledgeFinding,
+      plausible_inference:true,
+      inference_explanation:'The recorder supplies a reasonable on-page bridge.',
+    }],
+    new_findings:[knowledgeFinding],
+    overall:`The recorder resolves (${issueId}).`,
+  }, initialLedger.issues)
+  const resolvedLedger = mergeIssueLedger({
+    previousLedger:initialLedger,
+    scanResult:resolvedResult,
+    memory:recorderMemory,
+    draftText:recorderDraft,
+  })
+
+  assert.equal(resolvedResult.findings.length, 0)
+  assert.deepEqual(resolvedResult.resolved_issue_ids, [issueId])
+  assert.equal(resolvedLedger.issues.length, 1)
+  assert.equal(resolvedLedger.issues[0].status, 'resolved')
+  assert.doesNotMatch(resolvedLedger.overall, /issue:/)
+
+  const reopenedResult = reconcileDraftScanResult({
+    existing_issue_decisions:[{
+      issue_id:issueId,
+      status:'still_open',
+      decision_explanation:'The recorder bridge was removed.',
+      ...knowledgeFinding,
+    }],
+    new_findings:[],
+    overall:'The knowledge conflict returned.',
+  }, resolvedLedger.issues)
+  const reopenedLedger = mergeIssueLedger({
+    previousLedger:resolvedLedger,
+    scanResult:reopenedResult,
+    memory:originalMemory,
+    draftText:originalDraft,
+  })
+
+  assert.equal(reopenedLedger.issues.length, 1)
+  assert.equal(reopenedLedger.issues[0].id, issueId)
+  assert.equal(reopenedLedger.issues[0].status, 'open')
 })
