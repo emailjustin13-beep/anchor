@@ -506,6 +506,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
+          <span className="screenplay-studio-version">Studio 0.3.3</span>
           <input
             className="screenplay-title-input"
             value={title}
