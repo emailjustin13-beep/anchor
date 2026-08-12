@@ -28,7 +28,16 @@ import {
 } from '../../lib/screenplay'
 import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
-import { findEvidenceRange, findingFingerprint, findingMatchesDecision, normalizeFindingText } from '../../lib/draftReview'
+import { findEvidenceRange, findingFingerprint, normalizeFindingText } from '../../lib/draftReview'
+import {
+  buildStoryMemory,
+  canReuseIssueLedger,
+  diffStoryMemory,
+  emptyIssueLedger,
+  issueLedgerReview,
+  mergeIssueLedger,
+  setIssueLedgerStatus,
+} from '../../lib/storyMemory'
 
 const REL_COLORS = { ally:'#3FB950', rival:'#F85149', romantic:'#DB61A2', family:'#58A6FF', mentor:'#D2A8FF', enemy:'#FF7B72', complicated:'#FFA657', stranger:'#6A6A88' }
 const DRAFT_CATEGORY_LABELS = {
@@ -153,17 +162,23 @@ export default function WritingStudio({
   const [aiElapsed, setAiElapsed] = useState(0)
   const [review, setReview] = useState(null)
   const [message, setMessage] = useState('')
-  const [draftFindingDecisions, setDraftFindingDecisions] = useState([])
+  const [draftIssueLedger, setDraftIssueLedger] = useState(emptyIssueLedger)
+  const [storyMemoryState, setStoryMemoryState] = useState({ status:'ready', scenes:0, facts:0 })
 
   const saveTimer = useRef(null)
+  const memoryTimer = useRef(null)
   const importRef = useRef(null)
   const suggestionsRef = useRef([])
   const suggestionIndexRef = useRef(0)
   const titleRef = useRef(title)
   const titlePageRef = useRef(titlePage)
   const saveFnRef = useRef(onSaveScript)
+  const storyMemoryRef = useRef(null)
+  const legacyDecisionsRef = useRef([])
   const recoveryKey = `anchor-recovery:${project.id}`
   const draftDecisionKey = `anchor-draft-decisions:${project.id}`
+  const storyMemoryKey = `anchor-story-memory:${project.id}`
+  const issueLedgerKey = `anchor-issue-ledger:${project.id}`
 
   useEffect(() => { titleRef.current = title }, [title])
   useEffect(() => { titlePageRef.current = titlePage }, [titlePage])
@@ -179,45 +194,69 @@ export default function WritingStudio({
   }, [aiBusy])
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(draftDecisionKey) || '[]')
-      setDraftFindingDecisions(Array.isArray(saved) ? saved : [])
+      const savedLedger = JSON.parse(localStorage.getItem(issueLedgerKey) || 'null')
+      const legacyDecisions = JSON.parse(localStorage.getItem(draftDecisionKey) || '[]')
+      legacyDecisionsRef.current = Array.isArray(legacyDecisions) ? legacyDecisions : []
+      setDraftIssueLedger(savedLedger?.issues ? savedLedger : emptyIssueLedger())
     } catch {
-      setDraftFindingDecisions([])
+      legacyDecisionsRef.current = []
+      setDraftIssueLedger(emptyIssueLedger())
     }
-  }, [draftDecisionKey])
+  }, [draftDecisionKey, issueLedgerKey])
 
-  function updateDraftFindingDecisions(updater) {
-    setDraftFindingDecisions(current => {
-      const next = updater(current).slice(-100)
-      try {
-        localStorage.setItem(draftDecisionKey, JSON.stringify(next))
-      } catch {
-        setMessage('This review decision could not be saved in this browser.')
-      }
-      return next
-    })
+  function persistIssueLedger(next) {
+    try {
+      localStorage.setItem(issueLedgerKey, JSON.stringify(next))
+    } catch {
+      setMessage('Story Memory could not save the issue ledger in this browser.')
+    }
+    return next
   }
 
   function dismissDraftFinding(finding) {
-    const fingerprint = finding.fingerprint || findingFingerprint(finding)
-    updateDraftFindingDecisions(current => [
-      ...current.filter(item => item.fingerprint !== fingerprint),
-      {
-        fingerprint,
-        category:finding.category,
-        title:finding.title,
-        evidence:(finding.evidence || []).slice(0, 2),
-        dismissedAt:new Date().toISOString(),
-      },
-    ])
+    const issueId = finding.id
+    setDraftIssueLedger(current => persistIssueLedger(setIssueLedgerStatus(current, issueId, 'dismissed')))
+    setReview(current => current?.kind === 'draft' ? {
+      ...current,
+      findings:current.findings.map(issue => issue.id === issueId ? { ...issue, status:'dismissed' } : issue),
+    } : current)
   }
 
-  function restoreDraftFinding(fingerprint) {
-    updateDraftFindingDecisions(current => current.filter(item => item.fingerprint !== fingerprint))
+  function restoreDraftFinding(issueId) {
+    setDraftIssueLedger(current => persistIssueLedger(setIssueLedgerStatus(current, issueId, 'open')))
+    setReview(current => current?.kind === 'draft' ? {
+      ...current,
+      findings:current.findings.map(issue => issue.id === issueId ? { ...issue, status:'open' } : issue),
+    } : current)
   }
 
   function clearDraftFindingDecisions() {
-    updateDraftFindingDecisions(() => [])
+    legacyDecisionsRef.current = []
+    localStorage.removeItem(draftDecisionKey)
+    setDraftIssueLedger(current => {
+      const next = {
+        ...current,
+        issues:current.issues.map(issue => issue.status === 'dismissed' ? { ...issue, status:'open', dismissedAt:null } : issue),
+      }
+      setReview(reviewValue => reviewValue?.kind === 'draft' ? issueLedgerReview(next, { cached:true }) : reviewValue)
+      return persistIssueLedger(next)
+    })
+  }
+
+  function saveStoryMemory(memory) {
+    storyMemoryRef.current = memory
+    setStoryMemoryState({ status:'ready', scenes:memory.sceneCount, facts:memory.factCount })
+    try {
+      localStorage.setItem(storyMemoryKey, JSON.stringify(memory))
+    } catch {
+      setMessage('Story Memory could not be saved in this browser.')
+    }
+  }
+
+  function queueStoryMemory(doc) {
+    setStoryMemoryState(current => ({ ...current, status:'updating' }))
+    clearTimeout(memoryTimer.current)
+    memoryTimer.current = setTimeout(() => saveStoryMemory(buildStoryMemory(doc)), 650)
   }
 
   function queueSave(editorInstance, nextTitle = titleRef.current, nextTitlePage = titlePageRef.current) {
@@ -299,6 +338,7 @@ export default function WritingStudio({
       setActiveType(paragraph.type)
       setQueryText(paragraph.text)
       queueSave(instance)
+      queueStoryMemory(json)
     },
     onSelectionUpdate:({ editor:instance }) => {
       const paragraph = currentParagraph(instance)
@@ -330,7 +370,9 @@ export default function WritingStudio({
     setTitlePage(initialTitlePage)
     editor.commands.setContent(initial, { emitUpdate:false })
     setOutline(documentOutline(editor))
-    setStats({ words:countWords(editor.getJSON()), pages:estimateScreenplayPages(editor.getJSON()) })
+    const initialDocument = editor.getJSON()
+    setStats({ words:countWords(initialDocument), pages:estimateScreenplayPages(initialDocument) })
+    saveStoryMemory(buildStoryMemory(initialDocument))
     setSaveState('saved')
   }, [editor, script?.id, project.id])
 
@@ -343,7 +385,10 @@ export default function WritingStudio({
     setSuggestionIndex(0)
   }, [editor, activeType, queryText, characters, outline.length])
 
-  useEffect(() => () => clearTimeout(saveTimer.current), [])
+  useEffect(() => () => {
+    clearTimeout(saveTimer.current)
+    clearTimeout(memoryTimer.current)
+  }, [])
 
   useEffect(() => {
     const handleShortcut = event => {
@@ -525,13 +570,30 @@ export default function WritingStudio({
 
   async function runDraftScan() {
     if (!editor || characters.length < 1) return setMessage('Add at least one character first.')
-    const scriptText = documentToPlainText(editor.getJSON())
+    const document = editor.getJSON()
+    const scriptText = documentToPlainText(document)
     if (scriptText.length < 80) return setMessage('There is not enough writing to scan yet.')
-    setAiBusy('Auditing draft')
+
+    const currentMemory = buildStoryMemory(document)
+    saveStoryMemory(currentMemory)
+    if (canReuseIssueLedger(draftIssueLedger, currentMemory)) {
+      setReview(issueLedgerReview(draftIssueLedger, { cached:true, scanMode:'saved' }))
+      setMessage('No writing changed. Showing the exact saved review—no new AI scan was needed.')
+      return
+    }
+
+    const changes = diffStoryMemory(draftIssueLedger.lastScannedMemory, currentMemory)
+    const changedCount = changes.changedScenes.length + changes.removedScenes.length
+    const incrementalLimit = Math.max(3, Math.ceil(currentMemory.sceneCount * 0.6))
+    const incremental = Boolean(draftIssueLedger.lastScannedDraftHash) && changedCount > 0 && changedCount <= incrementalLimit
+    setAiBusy(incremental ? `Checking ${changedCount} changed scene${changedCount === 1 ? '' : 's'}` : 'Building story memory')
     setReview(null)
     try {
       const normalizedDraft = normalizeFindingText(scriptText)
-      const activeDecisions = draftFindingDecisions.filter(decision =>
+      const ledgerDecisions = draftIssueLedger.issues
+        .filter(issue => issue.status === 'dismissed')
+        .map(issue => ({ ...issue, fingerprint:issue.fingerprint || findingFingerprint(issue) }))
+      const activeDecisions = [...ledgerDecisions, ...legacyDecisionsRef.current].filter(decision =>
         (decision.evidence || []).some(item => {
           const quote = normalizeFindingText(item.quote)
           return quote.length >= 12 && normalizedDraft.includes(quote)
@@ -544,6 +606,11 @@ export default function WritingStudio({
         relationshipEvents,
         characterStateEvents,
         dismissedFindings:activeDecisions,
+        storyMemory:currentMemory,
+        previousIssues:draftIssueLedger.issues,
+        changedScenes:incremental ? changes.changedScenes : [],
+        removedScenes:incremental ? changes.removedScenes : [],
+        incremental,
       })
       const result = await callAI({
         ...prompt,
@@ -552,16 +619,29 @@ export default function WritingStudio({
         profile:'draft_scan',
         timeoutMs:50000,
       })
-      const findings = (result.findings || [])
-        .filter(finding => !activeDecisions.some(decision => findingMatchesDecision(finding, decision)))
-        .slice(0, 5)
-        .map(finding => ({
+      const scanResult = {
+        ...result,
+        findings:(result.findings || []).slice(0, 5).map(finding => ({
           ...finding,
           possibilities:(finding.possibilities || []).slice(0, 2),
           evidence:(finding.evidence || []).slice(0, 2),
-          fingerprint:findingFingerprint(finding),
-        }))
-      setReview({ kind:'draft', findings, overall:result.overall || '' })
+        })),
+        resolved_issue_ids:(result.resolved_issue_ids || []).slice(0, 100),
+      }
+      const nextLedger = mergeIssueLedger({
+        previousLedger:draftIssueLedger,
+        scanResult,
+        memory:currentMemory,
+        draftText:scriptText,
+        reviewedDecisions:activeDecisions,
+      })
+      persistIssueLedger(nextLedger)
+      setDraftIssueLedger(nextLedger)
+      setReview(issueLedgerReview(nextLedger, {
+        cached:false,
+        scanMode:incremental ? 'incremental' : 'initial',
+        changedSceneCount:incremental ? changedCount : currentMemory.sceneCount,
+      }))
     } catch (error) { setMessage('Draft scan failed: ' + error.message) }
     setAiBusy('')
   }
@@ -633,7 +713,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.3.10</span>
+          <span className="screenplay-studio-version">Studio 0.4.0</span>
           <input
             className="screenplay-title-input"
             value={title}
@@ -671,6 +751,11 @@ export default function WritingStudio({
 
         <div className="screenplay-review-toolbar no-print">
           <span>{stats.words.toLocaleString()} words · {stats.pages} page{stats.pages === 1 ? '' : 's'}</span>
+          <em className={`screenplay-memory-state ${storyMemoryState.status}`}>
+            {storyMemoryState.status === 'updating'
+              ? 'Story Memory updating…'
+              : `Story Memory ready · ${storyMemoryState.scenes} scene${storyMemoryState.scenes === 1 ? '' : 's'}`}
+          </em>
           <button onClick={runPressureTest} disabled={!!aiBusy || !selectedText(editor)}>Pressure Test</button>
           <button onClick={runSceneScan} disabled={!!aiBusy}>Scan Scene</button>
           <button onClick={runDraftScan} disabled={!!aiBusy}>Scan Draft</button>
@@ -751,7 +836,6 @@ export default function WritingStudio({
           ) : review.kind === 'draft' ? (
             <DraftReview
               review={review}
-              decisions={draftFindingDecisions}
               onDismiss={dismissDraftFinding}
               onRestore={restoreDraftFinding}
               onClearDecisions={clearDraftFindingDecisions}
@@ -802,11 +886,17 @@ export default function WritingStudio({
   )
 }
 
-function DraftReview({ review, decisions, onDismiss, onRestore, onClearDecisions, onJump }) {
+function DraftReview({ review, onDismiss, onRestore, onClearDecisions, onJump }) {
   const [showReviewed, setShowReviewed] = useState(false)
-  const decisionIds = new Set(decisions.map(item => item.fingerprint))
-  const activeFindings = review.findings.filter(finding => !decisionIds.has(finding.fingerprint))
-  const reviewedFindings = review.findings.filter(finding => decisionIds.has(finding.fingerprint))
+  const [showResolved, setShowResolved] = useState(false)
+  const activeFindings = review.findings.filter(finding => !finding.status || finding.status === 'open')
+  const reviewedFindings = review.findings.filter(finding => finding.status === 'dismissed')
+  const resolvedFindings = review.findings.filter(finding => finding.status === 'resolved')
+  const scanLabel = review.scanMode === 'saved'
+    ? 'Saved review · screenplay unchanged'
+    : review.scanMode === 'incremental'
+      ? `Story Memory checked ${review.changedSceneCount} changed scene${review.changedSceneCount === 1 ? '' : 's'}`
+      : 'Story Memory baseline created from the complete draft'
 
   if (review.findings.length === 0) {
     return <ReviewVerdict verdict="pass" summary={review.overall || 'No meaningful story-integrity concern was found in this draft.'} />
@@ -817,11 +907,12 @@ function DraftReview({ review, decisions, onDismiss, onRestore, onClearDecisions
       <div className="screenplay-draft-summary">
         <b>{activeFindings.length === 0 ? 'All returned questions have been reviewed' : `${activeFindings.length} question${activeFindings.length === 1 ? '' : 's'} to review`}</b>
         <span>{review.overall || 'Anchor compared the complete draft with the confirmed Story Bible.'}</span>
+        <small className="screenplay-scan-source">{scanLabel}</small>
         <small>Review only — nothing here changes your Story Bible. Decisions apply only to the cited evidence.</small>
       </div>
       <div className="screenplay-draft-findings">
         {activeFindings.map(finding => (
-          <DraftFindingCard finding={finding} key={finding.fingerprint} onDismiss={onDismiss} onJump={onJump} />
+          <DraftFindingCard finding={finding} key={finding.id || finding.fingerprint} onDismiss={onDismiss} onJump={onJump} />
         ))}
       </div>
       {reviewedFindings.length > 0 && (
@@ -832,22 +923,36 @@ function DraftReview({ review, decisions, onDismiss, onRestore, onClearDecisions
           {showReviewed && (
             <div className="screenplay-draft-findings">
               {reviewedFindings.map(finding => (
-                <DraftFindingCard finding={finding} key={finding.fingerprint} reviewed onRestore={onRestore} onJump={onJump} />
+                <DraftFindingCard finding={finding} key={finding.id || finding.fingerprint} reviewed onRestore={onRestore} onJump={onJump} />
               ))}
             </div>
           )}
         </div>
       )}
-      {decisions.length > 0 && (
+      {resolvedFindings.length > 0 && (
+        <div className="screenplay-reviewed-findings">
+          <button onClick={() => setShowResolved(value => !value)}>
+            {showResolved ? 'Hide' : 'Show'} resolved findings ({resolvedFindings.length})
+          </button>
+          {showResolved && (
+            <div className="screenplay-draft-findings">
+              {resolvedFindings.map(finding => (
+                <DraftFindingCard finding={finding} key={finding.id || finding.fingerprint} resolved onJump={onJump} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {reviewedFindings.length > 0 && (
         <button className="screenplay-reset-decisions" onClick={onClearDecisions}>Reset all “Not a problem” decisions</button>
       )}
     </>
   )
 }
 
-function DraftFindingCard({ finding, reviewed = false, onDismiss, onRestore, onJump }) {
+function DraftFindingCard({ finding, reviewed = false, resolved = false, onDismiss, onRestore, onJump }) {
   return (
-    <article className={`screenplay-draft-finding${reviewed ? ' reviewed' : ''}`}>
+    <article className={`screenplay-draft-finding${reviewed ? ' reviewed' : ''}${resolved ? ' resolved' : ''}`}>
       <header>
         <span>{DRAFT_CATEGORY_LABELS[finding.category] || finding.category}</span>
         <i className={`priority-${finding.priority}`}>{finding.priority}</i>
@@ -869,10 +974,12 @@ function DraftFindingCard({ finding, reviewed = false, onDismiss, onRestore, onJ
         </details>
       )}
       <div className="screenplay-finding-actions">
-        {reviewed
-          ? <button onClick={() => onRestore(finding.fingerprint)}>Restore question</button>
-          : <button onClick={() => onDismiss(finding)}>✓ Not a problem</button>}
-        <span>{reviewed ? 'Anchor will ignore this exact evidence conflict.' : 'Hide this exact conflict on future scans.'}</span>
+        {resolved
+          ? <span>Resolved because the supporting evidence changed or was removed.</span>
+          : reviewed
+            ? <button onClick={() => onRestore(finding.id)}>Restore question</button>
+            : <button onClick={() => onDismiss(finding)}>✓ Not a problem</button>}
+        {!resolved && <span>{reviewed ? 'Anchor will ignore this underlying evidence conflict.' : 'Keep this issue dismissed unless its evidence materially changes.'}</span>}
       </div>
     </article>
   )
