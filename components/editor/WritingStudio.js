@@ -30,6 +30,7 @@ import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
 import { findEvidenceRange, findingFingerprint, normalizeFindingText } from '../../lib/draftReview'
 import {
+  applyAudienceInferenceGate,
   buildStoryMemory,
   canReuseIssueLedger,
   diffStoryMemory,
@@ -616,18 +617,19 @@ export default function WritingStudio({
       const result = await callAI({
         ...prompt,
         schema:DRAFT_SCAN_SCHEMA,
-        maxTokens:3200,
+        maxTokens:5000,
         profile:'draft_scan',
-        timeoutMs:50000,
+        timeoutMs:55000,
       })
+      const gatedResult = applyAudienceInferenceGate(result, draftIssueLedger.issues)
       const scanResult = {
-        ...result,
-        findings:(result.findings || []).slice(0, 5).map(finding => ({
+        ...gatedResult,
+        findings:(gatedResult.findings || []).slice(0, 5).map(finding => ({
           ...finding,
           possibilities:(finding.possibilities || []).slice(0, 2),
           evidence:(finding.evidence || []).slice(0, 2),
         })),
-        resolved_issue_ids:(result.resolved_issue_ids || []).slice(0, 100),
+        resolved_issue_ids:(gatedResult.resolved_issue_ids || []).slice(0, 100),
       }
       const nextLedger = mergeIssueLedger({
         previousLedger:draftIssueLedger,
@@ -714,7 +716,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.4.1</span>
+          <span className="screenplay-studio-version">Studio 0.4.2</span>
           <input
             className="screenplay-title-input"
             value={title}

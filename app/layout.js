@@ -10,7 +10,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         {children}
-        <div className="anchor-build-marker no-print">Editor 0.4.1 Clean</div>
+        <div className="anchor-build-marker no-print">Editor 0.4.2 Clean</div>
       </body>
     </html>
   )

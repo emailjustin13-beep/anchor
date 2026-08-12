@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { legacyToDocument } from '../lib/screenplay.js'
 import {
+  applyAudienceInferenceGate,
   buildStoryMemory,
   canReuseIssueLedger,
   diffStoryMemory,
@@ -167,4 +168,29 @@ test('scratched keyhole evidence can resolve the old no-damage issue even when d
 
   assert.equal(revised.issues[0].status, 'resolved')
   assert.equal(revised.issues[0].resolvedAt !== null, true)
+})
+
+test('reasonable audience inference suppresses a candidate and resolves its ledger issue', () => {
+  const memory = buildStoryMemory(legacyToDocument(firstDraft))
+  const initial = mergeIssueLedger({
+    previousLedger:emptyIssueLedger(),
+    scanResult:{ findings:[keyFinding], resolved_issue_ids:[], overall:'Initial review.' },
+    memory,
+    draftText:firstDraft,
+  })
+  const issueId = initial.issues[0].id
+  const gated = applyAudienceInferenceGate({
+    findings:[{
+      ...keyFinding,
+      previous_issue_id:issueId,
+      plausible_inference:true,
+      inference_explanation:'Scratches around the keyhole reasonably imply lock manipulation.',
+    }],
+    resolved_issue_ids:[],
+    overall:'No unsupported integrity concern remains.',
+  }, initial.issues)
+
+  assert.equal(gated.findings.length, 0)
+  assert.deepEqual(gated.resolved_issue_ids, [issueId])
+  assert.equal(gated.suppressed_inference_count, 1)
 })

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 const requestWindows = new Map()
 const transientAIStatuses = new Set([429, 500, 502, 503, 504, 529])
 const maxAIAttempts = 2
-const aiDeadlines = { standard:55000, draft_scan:45000 }
+const aiDeadlines = { standard:55000, draft_scan:50000 }
 
 export const maxDuration = 60
 
@@ -193,7 +193,7 @@ export async function POST(request) {
     }
 
     if (isDraftScan && /claude-(?:sonnet|opus)-5/.test(body.model)) {
-      body.thinking = { type:'disabled' }
+      body.thinking = { type:'adaptive', display:'omitted' }
       body.output_config = { effort:'medium' }
     }
 
