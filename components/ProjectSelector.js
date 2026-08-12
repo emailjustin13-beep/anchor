@@ -15,19 +15,39 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
   async function submit() {
     if (!form.title.trim()) return
     setSaving(true)
-    const project = await onCreate(form)
+    let project
+    try {
+      project = await onCreate(form)
+    } catch (error) {
+      alert('Could not create the story bible: ' + error.message)
+      setSaving(false)
+      return
+    }
 
     // If they pasted a script, save it then launch First Read
     if (scriptPaste.trim() && project) {
       const { supabase } = await import('../lib/supabase')
-      await supabase.from('scripts').insert({
+      const { error: scriptError } = await supabase.from('scripts').insert({
         project_id: project.id,
         title:      form.title,
         content:    scriptPaste.trim(),
       })
+      if (scriptError) {
+        alert('The story bible was created, but the script could not be saved: ' + scriptError.message)
+        setSaving(false)
+        onSelect(project)
+        return
+      }
       setCreating(false)
       setSaving(false)
-      setFirstRead({ projectId: project.id, project })
+      setFirstRead({
+        projectId: project.id,
+        project,
+        scriptText: scriptPaste.trim(),
+        format: form.format,
+      })
+      setForm({ title: '', logline: '', genre: '', format: 'screenplay' })
+      setScriptPaste('')
       return
     }
 
@@ -35,6 +55,7 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
     setScriptPaste('')
     setCreating(false)
     setSaving(false)
+    if (project) onSelect(project)
   }
 
   function cancelCreate() {
@@ -61,8 +82,8 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
       {/* First Read overlay */}
       {firstRead && (
         <FirstRead
-          scriptText={scriptPaste}
-          format={form.format}
+          scriptText={firstRead.scriptText}
+          format={firstRead.format}
           projectId={firstRead.projectId}
           onComplete={handleFirstReadComplete}
           onCancel={handleFirstReadCancel}

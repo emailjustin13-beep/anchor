@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { callAI, buildPressureTestPrompt, buildRelationshipScanPrompt } from '../../lib/ai'
+import { callAI, buildPressureTestPrompt, buildRelationshipScanPrompt, PRESSURE_TEST_SCHEMA, RELATIONSHIP_SCAN_SCHEMA } from '../../lib/ai'
 import FirstRead from '../bible/FirstRead'
 
 // ── Block types ────────────────────────────────────────────────
@@ -103,13 +103,23 @@ function detectCharsInScene(blocks, characters) {
   return characters.filter(c => c.name && text.includes(c.name.toUpperCase()))
 }
 
-const VERDICT_STYLE = {
-  pass:     { color:'#3FB950', bg:'rgba(63,185,80,.08)',  border:'rgba(63,185,80,.2)',  icon:'✓', label:'In voice'         },
-  tension:  { color:'#FFA657', bg:'rgba(255,166,87,.08)', border:'rgba(255,166,87,.2)', icon:'⚠', label:'Some tension'     },
-  conflict: { color:'#F85149', bg:'rgba(248,81,73,.08)',  border:'rgba(248,81,73,.2)',  icon:'✕', label:'Conflict detected' },
+function currentSceneBlocks(blocks, focusId) {
+  if (!blocks.length) return []
+  const focusedIndex = Math.max(0, blocks.findIndex(block => block.id === focusId))
+  let start = focusedIndex
+  while (start > 0 && blocks[start].type !== 'scene') start -= 1
+  let end = focusedIndex + 1
+  while (end < blocks.length && blocks[end].type !== 'scene') end += 1
+  return blocks.slice(start, end)
 }
 
-export default function WritingEditor({ project, script, characters, relationships, locations, onSaveScript, onUpdateRelationship }) {
+const VERDICT_STYLE = {
+  pass:     { color:'#3FB950', bg:'rgba(63,185,80,.08)',  border:'rgba(63,185,80,.2)',  icon:'✓', label:'In voice'         },
+  question: { color:'#FFA657', bg:'rgba(255,166,87,.08)', border:'rgba(255,166,87,.2)', icon:'?', label:'Possible question' },
+  concern:  { color:'#F85149', bg:'rgba(248,81,73,.08)',  border:'rgba(248,81,73,.2)',  icon:'!', label:'Possible concern' },
+}
+
+export default function WritingEditor({ project, script, characters, relationships, relationshipEvents = [], onSaveScript, onCreateRelationship, onUpdateRelationship, onCreateRelationshipEvent, onReload }) {
   const [blocks, setBlocks]         = useState([makeBlock('scene')])
   const [title, setTitle]           = useState('')
   const [focusId, setFocusId]       = useState(null)
@@ -128,6 +138,7 @@ export default function WritingEditor({ project, script, characters, relationshi
   const [whisper, setWhisper]     = useState(null)
   const [whyOpen, setWhyOpen]     = useState(false)
   const [aiReading, setAiReading] = useState(false)
+  const [scanStatus, setScanStatus] = useState('')
 
   // First Read
   const [showFirstRead, setShowFirstRead]           = useState(false)
@@ -137,7 +148,6 @@ export default function WritingEditor({ project, script, characters, relationshi
   const blocksRef = useRef(blocks) // always-current blocks for event handlers
   const pageRefs  = useRef({})    // pageIndex → page card DOM el
   const saveTimer = useRef(null)
-  const scanTimer = useRef(null)
   const scrollRef = useRef(null)
 
   // Keep blocksRef in sync
@@ -170,51 +180,54 @@ export default function WritingEditor({ project, script, characters, relationshi
     }, 900)
   }, [onSaveScript])
 
-  // Living bible scan
-  const scheduleLivingScan = useCallback((newBlocks) => {
-    clearTimeout(scanTimer.current)
-    scanTimer.current = setTimeout(() => runLivingScan(newBlocks), 4000)
-  }, [characters, relationships])
-
-  async function runLivingScan(currentBlocks) {
-    if (characters.length < 2) return
+  // Manual story-integrity scan. Anchor reads only when the writer asks.
+  async function runLivingScan(currentBlocks, scopeLabel) {
+    if (characters.length < 1) {
+      setScanStatus('Add at least one character first.')
+      return
+    }
     setAiReading(true)
+    setScanStatus('')
     try {
-      const recentText = currentBlocks.slice(-12).map(b => b.text).filter(Boolean).join('\n')
-      if (recentText.trim().length < 80) return
-      const { systemPrompt, prompt } = buildRelationshipScanPrompt({ scriptChunk: recentText, characters, relationships })
-      const raw = await callAI({ systemPrompt, prompt })
-      const cleaned = raw.replace(/```json|```/g, '').trim()
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) return
-      const result = JSON.parse(jsonMatch[0])
+      const selectedText = currentBlocks.map(b => b.text).filter(Boolean).join('\n')
+      if (selectedText.trim().length < 40) {
+        setScanStatus(`${scopeLabel} is too short to scan.`)
+        return
+      }
+      const prompt = buildRelationshipScanPrompt({ scriptChunk: selectedText, characters, relationships })
+      const result = await callAI({ ...prompt, schema: RELATIONSHIP_SCAN_SCHEMA, maxTokens: 1800 })
       if (result.shift_detected) {
-        const charA = characters.find(c => c.name === result.character_a)
-        const charB = characters.find(c => c.name === result.character_b)
-        if (!charA || !charB) return
-        const existingRel = relationships.find(r =>
+        const charA = characters.find(c => c.name.toLowerCase() === result.character_a.toLowerCase())
+        const charB = characters.find(c => result.character_b && c.name.toLowerCase() === result.character_b.toLowerCase())
+        if (!charA) return
+        const existingRel = charB ? relationships.find(r =>
           (r.character_a === charA.id && r.character_b === charB.id) ||
           (r.character_a === charB.id && r.character_b === charA.id)
-        )
+        ) : null
         setWhisper({
           relId: existingRel?.id || null,
-          charAId: charA.id, charBId: charB.id,
-          charAName: result.character_a, charBName: result.character_b || '',
+          charAId: charA.id, charBId: charB?.id || null,
+          charAName: charA.name, charBName: charB?.name || '',
           proposedType: result.proposed_type,
           proposedTension: result.proposed_tension,
           reasoning: result.reasoning || [],
           summary: result.summary,
-          type: result.type || 'relationship_shift',
+          question: result.question,
+          evidence: result.evidence,
+          segmentLabel: result.segment_label || currentBlocks.find(block => block.type === 'scene')?.text || scopeLabel,
+          type: result.type === 'relationship_shift' && !charB ? 'behavioral_contradiction' : (result.type || 'relationship_shift'),
         })
+        setScanStatus('Possible story-integrity question found.')
+      } else {
+        setScanStatus(`No meaningful concern found in ${scopeLabel.toLowerCase()}.`)
       }
-    } catch (e) { console.error('Living Bible scan error:', e.message) }
+    } catch (e) { setScanStatus('Scan failed: ' + e.message) }
     finally { setAiReading(false) }
   }
 
   function push(newBlocks, newTitle) {
     setBlocks(newBlocks)
     scheduleAutoSave(newBlocks, newTitle ?? title)
-    scheduleLivingScan(newBlocks)
   }
 
   // ── contentEditable handlers ────────────────────────────────
@@ -230,7 +243,6 @@ export default function WritingEditor({ project, script, characters, relationshi
     blocksRef.current = updated
     setBlocks(updated)
     scheduleAutoSave(updated, title)
-    scheduleLivingScan(updated)
   }
 
   function handleKeyDown(e, block) {
@@ -356,33 +368,39 @@ export default function WritingEditor({ project, script, characters, relationshi
         surroundingContext: contextMenu.surroundingContext,
         relationship: rel, otherCharacter: otherChar,
       })
-      const raw    = await callAI({ systemPrompt, prompt })
-      const jsonMatch = raw.match(/\{[\s\S]*\}/); if (!jsonMatch) return; const result = JSON.parse(jsonMatch[0])
+      const result = await callAI({ systemPrompt, prompt, schema: PRESSURE_TEST_SCHEMA, maxTokens: 1800 })
       setPtCard({ loading:false, ...result, character, otherChar, rel })
     } catch (err) {
-      setPtCard({ loading:false, verdict:'tension', summary:err.message, notes:[], character, otherChar, rel })
+      setPtCard({ loading:false, verdict:'question', summary:err.message, evidence:'', question:'', notes:[], character, otherChar, rel })
     }
   }
 
   async function confirmWhisperUpdate() {
     if (!whisper) return
-    if (whisper.type === 'relationship_shift' && whisper.relId) {
-      // Find existing arc and append new entry
-      const existingRel = relationships.find(r => r.id === whisper.relId)
-      const currentArc  = Array.isArray(existingRel?.arc) ? existingRel.arc : []
-      const newEntry    = {
-        act:       'Living Bible',
-        type:      whisper.proposedType,
-        tension:   whisper.proposedTension,
-        note:      whisper.summary,
-        timestamp: new Date().toISOString(),
+    if (whisper.type === 'relationship_shift' && whisper.charBId) {
+      let relationshipId = whisper.relId
+      if (!relationshipId && onCreateRelationship) {
+        const created = await onCreateRelationship(whisper.charAId, whisper.charBId)
+        relationshipId = created?.id
       }
-      await onUpdateRelationship(whisper.relId, {
+      if (!relationshipId) return
+      await onUpdateRelationship(relationshipId, {
         type:         whisper.proposedType,
         tension:      whisper.proposedTension,
         ai_reasoning: whisper.reasoning.join('\n'),
-        arc:          [...currentArc, newEntry],
       })
+      if (onCreateRelationshipEvent) {
+        await onCreateRelationshipEvent(relationshipId, {
+          sequence_index: Math.max(0, ...relationshipEvents.map(event => event.sequence_index || 0)) + 1,
+          segment_type: 'scene',
+          segment_label: whisper.segmentLabel || 'Manual scene scan',
+          relationship_type: whisper.proposedType,
+          tension: whisper.proposedTension,
+          summary: whisper.summary,
+          evidence: whisper.evidence || '',
+          source: 'scene_scan',
+        })
+      }
     }
     setWhisper(null); setWhyOpen(false)
   }
@@ -427,7 +445,7 @@ export default function WritingEditor({ project, script, characters, relationshi
           scriptText={script.content.replace(/\[\w+\]/g, '')}
           format={project.format}
           projectId={project.id}
-          onComplete={() => { setShowFirstRead(false); window.location.reload() }}
+          onComplete={async () => { setShowFirstRead(false); await onReload?.() }}
           onCancel={() => { setShowFirstRead(false); setFirstReadDismissed(true) }}
         />
       )}
@@ -484,6 +502,12 @@ export default function WritingEditor({ project, script, characters, relationshi
             <span style={{ fontSize:11, color:'var(--dim)', fontWeight:300, borderLeft:'1px solid var(--edge)', paddingLeft:10 }}>
               {words.toLocaleString()} words · {pages.length}p
             </span>
+            <button disabled={aiReading} onClick={() => runLivingScan(currentSceneBlocks(blocksRef.current, focusId), 'Current scene')} style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background:'transparent', color:'var(--muted)', border:'1px solid var(--edge)', cursor:aiReading?'wait':'pointer', fontFamily:'var(--font-ui)' }}>
+              Scan Scene
+            </button>
+            <button disabled={aiReading} onClick={() => runLivingScan(blocksRef.current, 'Full draft')} style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background:'transparent', color:'var(--muted)', border:'1px solid var(--edge)', cursor:aiReading?'wait':'pointer', fontFamily:'var(--font-ui)' }}>
+              Scan Draft
+            </button>
             <button onClick={() => setXrayOpen(v => !v)} style={{ fontSize:11, padding:'3px 9px', borderRadius:5, background:xrayOpen?'var(--gold-bg)':'transparent', color:xrayOpen?'var(--gold)':'var(--dim)', border:`1px solid ${xrayOpen?'rgba(200,169,106,.2)':'transparent'}`, cursor:'pointer', fontFamily:'var(--font-ui)' }}>
               X-Ray
             </button>
@@ -496,13 +520,14 @@ export default function WritingEditor({ project, script, characters, relationshi
           <b style={{ color:'var(--muted)', fontWeight:500 }}>Tab</b> cycle &nbsp;·&nbsp;
           <b style={{ color:'var(--muted)', fontWeight:500 }}>Enter</b> new block &nbsp;·&nbsp;
           <b style={{ color:'var(--muted)', fontWeight:500 }}>Select + right-click</b> Pressure Test
+          {scanStatus && <span style={{ marginLeft:12, color:scanStatus.startsWith('Scan failed') ? 'var(--danger)' : 'var(--gold)' }}>· {scanStatus}</span>}
         </div>
 
         {/* First Read banner */}
         {showBanner && (
           <div style={{ padding:'9px 16px', background:'rgba(200,169,106,.06)', borderBottom:'1px solid rgba(200,169,106,.15)', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
             <div style={{ display:'flex', gap:3 }}><Dot/><Dot/><Dot/></div>
-            <span style={{ fontSize:12, color:'var(--muted)', fontWeight:300, flex:1 }}>Anchor can read this script and build your story bible automatically</span>
+            <span style={{ fontSize:12, color:'var(--muted)', fontWeight:300, flex:1 }}>Start a First Read to propose characters, relationships, and timeline events for your review</span>
             <button className="btn btn-gold" onClick={() => setShowFirstRead(true)} style={{ fontSize:11, padding:'4px 12px' }}>✦ First Read</button>
             <button onClick={() => setFirstReadDismissed(true)} style={{ fontSize:11, color:'var(--dim)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-ui)' }}>✕</button>
           </div>
@@ -604,7 +629,7 @@ export default function WritingEditor({ project, script, characters, relationshi
           {/* Why card */}
           {whisper && whyOpen && (
             <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:60, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={() => setWhyOpen(false)}>
-              <WhyCard whisper={whisper} onConfirm={confirmWhisperUpdate} onEdit={() => setWhyOpen(false)} onClose={() => setWhyOpen(false)} />
+              <WhyCard whisper={whisper} relationships={relationships} onConfirm={confirmWhisperUpdate} onEdit={() => setWhyOpen(false)} onClose={() => setWhyOpen(false)} />
             </div>
           )}
         </div>
@@ -622,7 +647,7 @@ export default function WritingEditor({ project, script, characters, relationshi
               <div className="breath-dot"/><div className="breath-dot"/><div className="breath-dot"/>
             </div>
             <span style={{ fontSize:10, color:'var(--gold)', fontWeight:300, opacity:.7 }}>
-              {aiReading ? 'Reading your script…' : 'Watching your story'}
+              {aiReading ? 'Reading your selection…' : 'Ready when you are'}
             </span>
           </div>
           <div style={{ flex:1, overflow:'auto', padding:'12px 14px' }}>
@@ -645,17 +670,6 @@ export default function WritingEditor({ project, script, characters, relationshi
                   ))
               }
             </div>
-            {locations.length > 0 && (
-              <div style={{ marginTop:14 }}>
-                <div style={{ fontSize:9, fontWeight:500, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:8 }}>Locations</div>
-                {locations.map(l => (
-                  <div key={l.id} style={{ padding:'6px 0', borderBottom:'1px solid var(--edge)' }}>
-                    <div style={{ fontSize:12, color:'var(--text)', fontWeight:400 }}>{l.name}</div>
-                    {l.atmosphere && <div style={{ fontSize:10, color:'var(--muted)', marginTop:2, lineHeight:1.5, fontWeight:300 }}>{l.atmosphere.slice(0,70)}{l.atmosphere.length>70?'…':''}</div>}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -747,7 +761,7 @@ function PressureTestCard({ card, onClose }) {
       <Spinner/> <span style={{ fontSize:13, color:'var(--muted)', fontWeight:300 }}>Pressure testing…</span>
     </div>
   )
-  const v = VERDICT_STYLE[card.verdict] || VERDICT_STYLE.tension
+  const v = VERDICT_STYLE[card.verdict] || VERDICT_STYLE.question
   return (
     <div className="lore-card">
       <div className="lore-bar" style={{ background:v.color }}/>
@@ -756,6 +770,17 @@ function PressureTestCard({ card, onClose }) {
           <div className="lore-eyebrow">Pressure Test — {card.character?.name}</div>
           <button onClick={onClose} style={{ fontSize:10, color:'var(--dim)', cursor:'pointer', background:'none', border:'none', lineHeight:1 }}>✕</button>
         </div>
+        {card.evidence && (
+          <div style={{ marginBottom:12 }}>
+            <div className="lore-label" style={{ marginBottom:6 }}>Evidence from the passage</div>
+            <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.6, fontWeight:300, padding:'8px 10px', borderLeft:`2px solid ${v.color}`, background:'rgba(255,255,255,.02)' }}>“{card.evidence}”</div>
+          </div>
+        )}
+        {card.question && (
+          <div style={{ fontSize:11, color:'var(--gold)', lineHeight:1.6, fontWeight:300, marginBottom:12 }}>
+            <b style={{ fontWeight:500 }}>Question for you:</b> {card.question}
+          </div>
+        )}
         <div style={{ display:'flex', alignItems:'center', gap:9, padding:'9px 12px', borderRadius:5, marginBottom:12, background:v.bg, border:`1px solid ${v.border}` }}>
           <span style={{ fontSize:16 }}>{v.icon}</span>
           <div>
@@ -796,7 +821,14 @@ function PressureTestCard({ card, onClose }) {
 }
 
 // ── Why Card ───────────────────────────────────────────────────
-function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
+function WhyCard({ whisper, relationships, onConfirm, onEdit, onClose }) {
+  const relationship = relationships.find(r =>
+    (r.character_a === whisper.charAId && r.character_b === whisper.charBId) ||
+    (r.character_a === whisper.charBId && r.character_b === whisper.charAId)
+  )
+  const subject = whisper.type === 'behavioral_contradiction'
+    ? whisper.charAName
+    : `${whisper.charAName} & ${whisper.charBName}`
   return (
     <div className="lore-card" style={{ width:340 }} onClick={e => e.stopPropagation()}>
       <div className="lore-bar" style={{ background:'linear-gradient(90deg, var(--gold), var(--gold-dim))' }}/>
@@ -805,8 +837,13 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
           <div className="lore-eyebrow">Living Bible — AI reasoning</div>
           <button onClick={onClose} style={{ fontSize:10, color:'var(--dim)', cursor:'pointer', background:'none', border:'none' }}>✕</button>
         </div>
-        <div className="lore-name">Why we think {whisper.charAName} & {whisper.charBName} have shifted</div>
+        <div className="lore-name">Why Anchor flagged {subject}</div>
         <div className="lore-divider"/>
+        {whisper.evidence && (
+          <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.6, fontWeight:300, marginBottom:12, padding:'8px 10px', borderLeft:'2px solid var(--gold)', background:'rgba(255,255,255,.02)' }}>
+            “{whisper.evidence}”
+          </div>
+        )}
         {whisper.reasoning.map((r,i) => (
           <div key={i} style={{ display:'flex', gap:9, marginBottom:10 }}>
             <span style={{ fontSize:10, color:'var(--gold)', fontWeight:500, flexShrink:0, marginTop:1 }}>{i+1}</span>
@@ -822,7 +859,7 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
               <div style={{ textAlign:'center' }}>
                 <div style={{ fontSize:10, color:'var(--dim)', marginBottom:3 }}>Current</div>
                 <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300, textTransform:'capitalize', textDecoration:'line-through' }}>
-                  {(() => { const rel = relationships.find(r => (r.character_a === whisper.charAId && r.character_b === whisper.charBId) || (r.character_a === whisper.charBId && r.character_b === whisper.charAId)); return rel ? `${rel.type} · ${rel.tension}/100` : 'Unknown' })()}
+                  {relationship ? `${relationship.type} · ${relationship.tension}/100` : 'Unknown'}
                 </div>
               </div>
               <span style={{ fontSize:18, color:'var(--gold)' }}>→</span>
@@ -846,6 +883,11 @@ function WhyCard({ whisper, onConfirm, onEdit, onClose }) {
             <div style={{ fontSize:11, color:'var(--dim)', marginTop:4, fontWeight:300 }}>
               This is a behavioral note only — Anchor flagged it so you're aware. Confirming just closes this card.
             </div>
+          </div>
+        )}
+        {whisper.question && (
+          <div style={{ fontSize:11, color:'var(--gold)', lineHeight:1.6, fontWeight:300, marginBottom:14 }}>
+            <b style={{ fontWeight:500 }}>Question for you:</b> {whisper.question}
           </div>
         )}
         <div style={{ display:'flex', gap:8 }}>
