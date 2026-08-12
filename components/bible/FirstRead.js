@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { callAI, buildFirstReadPrompt, FIRST_READ_SCHEMA } from '../../lib/ai'
 
 const REL_TYPES = ['ally','rival','romantic','family','mentor','enemy','complicated','stranger']
@@ -13,16 +13,29 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
   const [relationshipEvents, setRelationshipEvents] = useState([])
   const [characterStates, setCharacterStates] = useState([])
   const [error, setError]             = useState('')
+  const [errorCode, setErrorCode]     = useState('')
+  const [reading, setReading]         = useState(false)
   const [saving, setSaving]           = useState(false)
+  const requestInFlight               = useRef(false)
 
   // Run on mount
   useEffect(() => { runRead() }, [])
 
   async function runRead() {
+    if (requestInFlight.current) return
+    requestInFlight.current = true
+    setReading(true)
     setStep('reading')
     setError('')
+    setErrorCode('')
     try {
       if (!scriptText?.trim()) throw new Error('No script text was provided.')
+      const wordCount = scriptText.trim().split(/\s+/).filter(Boolean).length
+      if (wordCount < 25) {
+        const shortScriptError = new Error('First Read needs at least 25 words. Add a little action or dialogue, then try again.')
+        shortScriptError.code = 'SCRIPT_TOO_SHORT'
+        throw shortScriptError
+      }
       const prompt = buildFirstReadPrompt(scriptText, format)
       const result = await callAI({ ...prompt, schema: FIRST_READ_SCHEMA, maxTokens: 8000 })
       // Assign colors and temp IDs
@@ -54,7 +67,11 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
       setCharacterStates(stateEvents)
       setStep('characters')
     } catch(e) {
-      setError('Error: ' + e.message)
+      setErrorCode(e.code || 'AI_REQUEST_FAILED')
+      setError(e.message || 'First Read could not finish. Please try again.')
+    } finally {
+      requestInFlight.current = false
+      setReading(false)
     }
   }
 
@@ -172,17 +189,24 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
     <Overlay>
       <div style={{ textAlign:'center', padding:40 }}>
         <div style={{ fontFamily:'var(--font-display)', fontSize:22, color:'var(--gold)', fontWeight:300, marginBottom:16 }}>First Read</div>
-        <div style={{ display:'flex', justifyContent:'center', gap:5, marginBottom:18 }}>
-          <Dot delay={0}/><Dot delay={0.2}/><Dot delay={0.4}/>
-        </div>
-        <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300 }}>Anchor is reading your script…</div>
-        <div style={{ fontSize:11, color:'var(--dim)', marginTop:6, fontWeight:300 }}>Detecting characters, relationships, and story chronology</div>
+        {reading && (
+          <div style={{ display:'flex', justifyContent:'center', gap:5, marginBottom:18 }}>
+            <Dot delay={0}/><Dot delay={0.2}/><Dot delay={0.4}/>
+          </div>
+        )}
+        <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300 }}>{reading ? 'Anchor is reading your script…' : 'First Read paused'}</div>
+        <div style={{ fontSize:11, color:'var(--dim)', marginTop:6, fontWeight:300 }}>{reading ? 'Detecting characters, relationships, and story chronology' : 'Nothing was changed or lost'}</div>
       </div>
       {error && (
         <div style={{ padding:'14px 20px', background:'rgba(248,81,73,.08)', border:'1px solid rgba(248,81,73,.2)', borderRadius:8, margin:'0 24px 24px', fontSize:13, color:'var(--danger)', fontWeight:300 }}>
           {error}
+          {['AI_OVERLOADED', 'AI_TEMPORARY_FAILURE', 'AI_CONNECTION_FAILURE'].includes(errorCode) && (
+            <div style={{ marginTop:8 }}>
+              <a href="https://status.anthropic.com/" target="_blank" rel="noreferrer" style={{ color:'var(--gold)' }}>Check Anthropic status ↗</a>
+            </div>
+          )}
           <div style={{ marginTop:10, display:'flex', gap:8 }}>
-            <button className="btn btn-gold btn-sm" onClick={runRead}>Try again</button>
+            <button className="btn btn-gold btn-sm" onClick={runRead} disabled={reading}>{reading ? 'Trying…' : 'Try again'}</button>
             <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
           </div>
         </div>

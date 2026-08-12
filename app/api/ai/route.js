@@ -1,6 +1,52 @@
 import { NextResponse } from 'next/server'
 
 const requestWindows = new Map()
+const transientAIStatuses = new Set([429, 500, 502, 503, 504, 529])
+const maxAIAttempts = 3
+
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
+
+function retryDelay(response, attempt) {
+  const retryAfter = response?.headers.get('retry-after')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds)) return Math.min(seconds * 1000, 5000)
+
+    const retryDate = Date.parse(retryAfter)
+    if (!Number.isNaN(retryDate)) return Math.min(Math.max(retryDate - Date.now(), 0), 5000)
+  }
+
+  return Math.min(750 * (2 ** attempt) + Math.floor(Math.random() * 250), 5000)
+}
+
+async function requestAnthropic(key, body) {
+  const requestBody = JSON.stringify(body)
+  let lastNetworkError
+
+  for (let attempt = 0; attempt < maxAIAttempts; attempt += 1) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key':         key,
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+        },
+        body: requestBody,
+      })
+
+      const shouldRetry = transientAIStatuses.has(response.status) && attempt < maxAIAttempts - 1
+      if (!shouldRetry) return response
+      await wait(retryDelay(response, attempt))
+    } catch (error) {
+      lastNetworkError = error
+      if (attempt === maxAIAttempts - 1) throw error
+      await wait(retryDelay(null, attempt))
+    }
+  }
+
+  throw lastNetworkError || new Error('Anchor AI could not be reached.')
+}
 
 async function getUser(request) {
   const authorization = request.headers.get('authorization') || ''
@@ -62,18 +108,32 @@ export async function POST(request) {
       }
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key':         key,
-        'anthropic-version': '2023-06-01',
-        'content-type':      'application/json',
-      },
-      body: JSON.stringify(body),
-    })
+    const response = await requestAnthropic(key, body)
 
     if (!response.ok) {
-      const err = await response.json()
+      const err = await response.json().catch(() => ({}))
+      if (response.status === 529) {
+        return NextResponse.json(
+          {
+            error: 'Anthropic is temporarily overloaded. Your screenplay is safe. Wait a minute and try First Read again.',
+            code: 'AI_OVERLOADED',
+            retryable: true,
+          },
+          { status: 529 }
+        )
+      }
+
+      if (transientAIStatuses.has(response.status)) {
+        return NextResponse.json(
+          {
+            error: 'Anchor AI is temporarily unavailable. Your screenplay is safe. Wait a minute and try again.',
+            code: 'AI_TEMPORARY_FAILURE',
+            retryable: true,
+          },
+          { status: response.status }
+        )
+      }
+
       return NextResponse.json(
         { error: err.error?.message || 'AI request failed' },
         { status: response.status }
@@ -95,6 +155,13 @@ export async function POST(request) {
     return NextResponse.json({ result: text })
 
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: 'Anchor AI could not be reached. Your screenplay is safe. Wait a moment and try again.',
+        code: 'AI_CONNECTION_FAILURE',
+        retryable: true,
+      },
+      { status: 503 }
+    )
   }
 }
