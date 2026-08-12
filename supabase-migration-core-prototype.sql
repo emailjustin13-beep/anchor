@@ -11,6 +11,8 @@ alter table public.characters add column if not exists gender text not null defa
 alter table public.characters add column if not exists physical text not null default '';
 alter table public.characters add column if not exists life_state text not null default 'alive';
 alter table public.relationships alter column type set default 'stranger';
+alter table public.scripts add column if not exists content_json jsonb;
+alter table public.scripts add column if not exists title_page jsonb not null default '{}'::jsonb;
 
 alter table public.projects alter column owner_id set default auth.uid();
 alter table public.characters drop constraint if exists characters_life_state_check;
@@ -45,8 +47,21 @@ create table if not exists public.character_state_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.script_versions (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  script_id uuid not null references public.scripts(id) on delete cascade,
+  label text not null,
+  title text not null default 'Untitled',
+  content text not null default '',
+  content_json jsonb,
+  title_page jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists relationship_events_order_idx on public.relationship_events(project_id, sequence_index);
 create index if not exists character_state_events_order_idx on public.character_state_events(project_id, sequence_index);
+create index if not exists script_versions_script_idx on public.script_versions(script_id, created_at desc);
 
 create or replace function public.owns_anchor_project(target_project_id uuid)
 returns boolean language sql stable security definer set search_path = public as $$
@@ -60,6 +75,7 @@ alter table public.relationship_events enable row level security;
 alter table public.character_state_events enable row level security;
 alter table public.locations enable row level security;
 alter table public.scripts enable row level security;
+alter table public.script_versions enable row level security;
 
 drop policy if exists "public projects" on public.projects;
 drop policy if exists "public characters" on public.characters;
@@ -67,6 +83,17 @@ drop policy if exists "public relationships" on public.relationships;
 drop policy if exists "public locations" on public.locations;
 drop policy if exists "public scripts" on public.scripts;
 drop policy if exists "public location images" on storage.objects;
+drop policy if exists "owners read projects" on public.projects;
+drop policy if exists "owners create projects" on public.projects;
+drop policy if exists "owners update projects" on public.projects;
+drop policy if exists "owners delete projects" on public.projects;
+drop policy if exists "owners manage characters" on public.characters;
+drop policy if exists "owners manage relationships" on public.relationships;
+drop policy if exists "owners manage relationship events" on public.relationship_events;
+drop policy if exists "owners manage character state events" on public.character_state_events;
+drop policy if exists "owners manage locations" on public.locations;
+drop policy if exists "owners manage scripts" on public.scripts;
+drop policy if exists "owners manage script versions" on public.script_versions;
 
 create policy "owners read projects" on public.projects for select to authenticated using (owner_id = auth.uid());
 create policy "owners create projects" on public.projects for insert to authenticated with check (owner_id = auth.uid());
@@ -78,6 +105,7 @@ create policy "owners manage relationship events" on public.relationship_events 
 create policy "owners manage character state events" on public.character_state_events for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
 create policy "owners manage locations" on public.locations for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
 create policy "owners manage scripts" on public.scripts for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
+create policy "owners manage script versions" on public.script_versions for all to authenticated using (public.owns_anchor_project(project_id)) with check (public.owns_anchor_project(project_id));
 
 update storage.buckets set public = false where id = 'location-images';
 

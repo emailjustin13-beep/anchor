@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import ProjectSelector from './ProjectSelector'
 import Shell from './Shell'
@@ -10,23 +10,57 @@ export default function App() {
   const [active, setActive]     = useState(null)
   const [loading, setLoading]   = useState(true)
   const [session, setSession]   = useState(null)
+  const userIdRef = useRef(null)
+
+  function projectStorageKey(userId) {
+    return `anchor-active-project:${userId}`
+  }
+
+  function openProject(project) {
+    if (session?.user?.id) localStorage.setItem(projectStorageKey(session.user.id), project.id)
+    const url = new URL(window.location.href)
+    url.searchParams.set('project', project.id)
+    window.history.replaceState({}, '', url)
+    setActive(project)
+  }
+
+  function exitProject() {
+    if (session?.user?.id) localStorage.removeItem(projectStorageKey(session.user.id))
+    const url = new URL(window.location.href)
+    url.searchParams.delete('project')
+    window.history.replaceState({}, '', url)
+    setActive(null)
+  }
 
   useEffect(() => {
     let mounted = true
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
       setSession(data.session)
-      if (data.session) load(data.session.user.id)
+      userIdRef.current = data.session?.user?.id || null
+      if (data.session) load(data.session.user.id, true)
       else setLoading(false)
     })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return
+      const previousUserId = userIdRef.current
+      const nextUserId = nextSession?.user?.id || null
       setSession(nextSession)
-      setActive(null)
-      if (nextSession) load(nextSession.user.id)
-      else {
+
+      if (!nextUserId) {
+        userIdRef.current = null
         setProjects([])
         setLoading(false)
+        return
+      }
+
+      userIdRef.current = nextUserId
+      if (previousUserId && previousUserId !== nextUserId) setActive(null)
+
+      // SIGNED_IN can fire again when a browser tab regains focus. Preserve the
+      // open project for same-user auth refreshes and only reload on a new user.
+      if (!previousUserId || previousUserId !== nextUserId || event === 'USER_UPDATED') {
+        load(nextUserId, true)
       }
     })
     return () => {
@@ -35,11 +69,27 @@ export default function App() {
     }
   }, [])
 
-  async function load(userId = session?.user?.id) {
+  async function load(userId = session?.user?.id, restoreProject = false) {
     if (!userId) return
     setLoading(true)
-    const { data } = await supabase.from('projects').select('*').eq('owner_id', userId).order('updated_at', { ascending: false })
-    setProjects(data || [])
+    const { data, error } = await supabase.from('projects').select('*').eq('owner_id', userId).order('updated_at', { ascending: false })
+    const nextProjects = error ? [] : (data || [])
+    setProjects(nextProjects)
+    if (restoreProject) {
+      const requestedId = new URLSearchParams(window.location.search).get('project')
+      const rememberedId = localStorage.getItem(projectStorageKey(userId))
+      setActive(current => {
+        const projectId = current?.id || requestedId || rememberedId
+        const restored = nextProjects.find(project => project.id === projectId) || null
+        if (restored) {
+          localStorage.setItem(projectStorageKey(userId), restored.id)
+          const url = new URL(window.location.href)
+          url.searchParams.set('project', restored.id)
+          window.history.replaceState({}, '', url)
+        }
+        return restored
+      })
+    }
     setLoading(false)
   }
 
@@ -54,7 +104,7 @@ export default function App() {
   async function deleteProject(id) {
     await supabase.from('projects').delete().eq('id', id)
     setProjects(p => p.filter(x => x.id !== id))
-    if (active?.id === id) setActive(null)
+    if (active?.id === id) exitProject()
   }
 
   if (loading) return (
@@ -65,6 +115,6 @@ export default function App() {
   )
 
   if (!session) return <AuthGate />
-  if (!active) return <ProjectSelector projects={projects} onCreate={createProject} onSelect={setActive} onDelete={deleteProject} />
-  return <Shell project={active} onExit={() => setActive(null)} onSignOut={() => supabase.auth.signOut()} />
+  if (!active) return <ProjectSelector projects={projects} onCreate={createProject} onSelect={openProject} onDelete={deleteProject} />
+  return <Shell project={active} onExit={exitProject} onSignOut={() => supabase.auth.signOut()} />
 }

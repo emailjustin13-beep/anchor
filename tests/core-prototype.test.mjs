@@ -5,7 +5,7 @@ import test from 'node:test'
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('AI runs only after an explicit writer action', async () => {
-  const editor = await read('components/editor/WritingEditor.js')
+  const editor = await read('components/editor/WritingStudio.js')
   assert.match(editor, /Scan Scene/)
   assert.match(editor, /Scan Draft/)
   assert.doesNotMatch(editor, /setTimeout\([^)]*runLivingScan/s)
@@ -21,12 +21,33 @@ test('AI credentials remain server-side and requests require a session', async (
   assert.match(route, /status: 401/)
 })
 
+test('Google is the primary sign-in path with email retained as a backup', async () => {
+  const auth = await read('components/AuthGate.js')
+  assert.match(auth, /signInWithOAuth/)
+  assert.match(auth, /provider:'google'/)
+  assert.match(auth, /Continue with Google/)
+  assert.match(auth, /Email backup/)
+  assert.match(auth, /redirectTo:window\.location\.origin/)
+})
+
+test('same-user auth refreshes preserve and restore the open project', async () => {
+  const [app, layout] = await Promise.all([read('components/App.js'), read('app/layout.js')])
+  assert.match(app, /anchor-active-project:/)
+  assert.match(app, /searchParams\.set\('project', project\.id\)/)
+  assert.match(app, /new URLSearchParams\(window\.location\.search\)\.get\('project'\)/)
+  assert.match(app, /previousUserId && previousUserId !== nextUserId/)
+  assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
+  assert.match(app, /onSelect=\{openProject\}/)
+  assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
+  assert.match(layout, /Editor 0\.3\.2/)
+})
+
 test('every AI workflow uses a closed structured schema with evidence', async () => {
   const ai = await read('lib/ai.js')
   const consumers = await Promise.all([
     read('components/bible/FirstRead.js'),
     read('components/bible/BibleDashboard.js'),
-    read('components/editor/WritingEditor.js'),
+    read('components/editor/WritingStudio.js'),
   ])
   assert.match(ai, /PRESSURE_TEST_SCHEMA/)
   assert.match(ai, /RELATIONSHIP_SCAN_SCHEMA/)
