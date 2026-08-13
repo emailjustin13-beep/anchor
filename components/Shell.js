@@ -174,38 +174,30 @@ export default function Shell({ project, onExit, onSignOut }) {
   const relOps  = { onCreateRelationship: createRelationship, onUpdateRelationship: updateRelationship, onDeleteRelationship: deleteRelationship }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="anchor-shell">
 
       {/* Icon nav */}
-      <nav style={{ width: 52, flexShrink: 0, background: 'var(--bg)', borderRight: '1px solid var(--edge)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 0', gap: 2 }}>
+      <nav className="anchor-rail">
         {/* Wordmark — click to exit to projects */}
-        <div onClick={onExit} title="All projects" style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--gold)', cursor: 'pointer', marginBottom: 12, fontWeight: 300, letterSpacing: 1 }}>
+        <button className="anchor-rail-brand" onClick={onExit} title="All projects">
           A
-        </div>
-        <div style={{ width: 26, height: 1, background: 'var(--edge)', marginBottom: 8 }} />
+        </button>
+        <div className="anchor-rail-rule" />
 
         {NAV.map(n => (
-          <button key={n.id} onClick={() => setModule(n.id)} title={n.label} style={{
-            width: 36, height: 36, borderRadius: 7,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, cursor: 'pointer',
-            background: module === n.id ? 'var(--gold-bg)' : 'transparent',
-            color: module === n.id ? 'var(--gold)' : 'var(--dim)',
-            border: `1px solid ${module === n.id ? 'rgba(200,169,106,.2)' : 'transparent'}`,
-            transition: 'all .1s',
-          }}>
+          <button key={n.id} className={`anchor-rail-button${module === n.id ? ' active' : ''}`} onClick={() => setModule(n.id)} title={n.label} aria-label={n.label}>
             {n.icon}
           </button>
         ))}
 
-        <button onClick={onSignOut} title="Sign out" style={{ marginTop:'auto', width:36, height:36, borderRadius:7, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, cursor:'pointer', background:'transparent', color:'var(--dim)', border:'1px solid transparent' }}>
+        <button className="anchor-rail-button anchor-sign-out" onClick={onSignOut} title="Sign out" aria-label="Sign out">
           ↪
         </button>
 
       </nav>
 
       {/* Main */}
-      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <main className="anchor-shell-main">
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13, fontWeight: 300 }}>Loading story bible…</div>
         ) : (

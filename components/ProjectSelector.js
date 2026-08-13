@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import FirstRead from './bible/FirstRead'
 
-const FORMAT_ICONS  = { screenplay: '🎬', novel: '📖', short_story: '✍️' }
+const FORMAT_ICONS  = { screenplay: 'SC', novel: 'NV', short_story: 'SS' }
 const FORMAT_LABELS = { screenplay: 'Screenplay', novel: 'Novel', short_story: 'Short Story' }
 
 export default function ProjectSelector({ projects, onCreate, onSelect, onDelete }) {
@@ -77,7 +77,7 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div className="project-library">
 
       {/* First Read overlay */}
       {firstRead && (
@@ -91,28 +91,35 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
       )}
 
       {/* Hero */}
-      <div style={{ textAlign: 'center', padding: '80px 24px 64px', borderBottom: '1px solid var(--edge)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 60% 60% at 50% 50%, rgba(200,169,106,.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ width: 28, height: 1, background: 'var(--gold)', opacity: .35, margin: '0 auto 28px' }} />
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 58, fontWeight: 200, color: 'var(--gold)', letterSpacing: '18px', textTransform: 'uppercase', paddingLeft: '18px', marginBottom: 20, lineHeight: 1 }}>
+      <header className="project-hero">
+        <div className="project-hero-orbit" aria-hidden="true" />
+        <div className="project-hero-kicker"><span /> Story intelligence for writers <span /></div>
+        <div className="project-wordmark">
           Anchor
         </div>
-        <div style={{ fontSize: 13, fontWeight: 300, color: 'var(--muted)', letterSpacing: '.04em' }}>
+        <div className="project-tagline">
           We don't write your story. We help you stay true to it.
         </div>
-      </div>
+      </header>
 
       {/* Body */}
-      <div style={{ maxWidth: 860, margin: '0 auto', width: '100%', padding: '40px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.1em' }}>Your story bibles</span>
-          <button className="btn btn-gold btn-sm" onClick={() => setCreating(true)}>+ New story bible</button>
+      <main className="project-library-body">
+        <div className="project-library-heading">
+          <div>
+            <span className="project-library-eyebrow">Private workspace</span>
+            <h1>Your stories</h1>
+            <p>{projects.length === 0 ? 'Create your first story bible.' : `${projects.length} ${projects.length === 1 ? 'world' : 'worlds'} waiting for you.`}</p>
+          </div>
+          <button className="btn btn-gold btn-sm" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> New story bible</button>
         </div>
 
         {/* Create form */}
         {creating && (
-          <div className="card fade-in" style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--gold)', fontWeight: 300 }}>New story bible</div>
+          <div className="card project-create-card fade-in">
+            <div className="project-create-heading">
+              <span>New world</span>
+              <h2>Start a story bible</h2>
+            </div>
 
             <div className="field">
               <label>Title *</label>
@@ -169,44 +176,37 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
         )}
 
         {/* Project grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
+        <div className="project-grid">
           {projects.map(p => (
-            <div key={p.id} className="card" onClick={() => onSelect(p)}
-              style={{ cursor: 'pointer', transition: 'border-color .15s', position: 'relative' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold-dim)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--edge)'}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
-                <span style={{ fontSize: 15 }}>{FORMAT_ICONS[p.format]}</span>
-                <span style={{ fontSize: 10, color: 'var(--muted)', background: 'var(--s3)', padding: '2px 8px', borderRadius: 4, fontWeight: 500 }}>{FORMAT_LABELS[p.format]}</span>
+            <article key={p.id} className="project-card" onClick={() => onSelect(p)} tabIndex={0} onKeyDown={event => event.key === 'Enter' && onSelect(p)}>
+              <div className="project-card-shine" aria-hidden="true" />
+              <div className="project-card-topline">
+                <span className="project-format-icon">{FORMAT_ICONS[p.format]}</span>
+                <span className="project-format-label">{FORMAT_LABELS[p.format]}</span>
               </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 19, color: 'var(--text)', fontWeight: 300, marginBottom: 6 }}>{p.title}</div>
-              {p.logline && <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.55, marginBottom: 12, fontWeight: 300 }}>{p.logline}</div>}
-              <div style={{ fontSize: 10, color: 'var(--dim)', borderTop: '1px solid var(--edge)', paddingTop: 10, marginTop: p.logline ? 0 : 12 }}>
-                {p.genre && <span>{p.genre} &nbsp;·&nbsp; </span>}
-                {FORMAT_LABELS[p.format]}
+              <h2>{p.title}</h2>
+              {p.logline ? <p>{p.logline}</p> : <p className="project-card-empty">Your story is ready for its next page.</p>}
+              <div className="project-card-footer">
+                <span>{p.genre || FORMAT_LABELS[p.format]}</span>
+                <b>Open <span aria-hidden="true">→</span></b>
               </div>
               <button
                 onClick={e => { e.stopPropagation(); if (confirm(`Delete "${p.title}"?`)) onDelete(p.id) }}
-                style={{ position: 'absolute', top: 10, right: 10, fontSize: 13, color: 'var(--dim)', opacity: 0.4, background:'rgba(0,0,0,.3)', border:'1px solid var(--edge)', borderRadius:4, cursor:'pointer', width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger)' }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = 0.4; e.currentTarget.style.color = 'var(--dim)'; e.currentTarget.style.borderColor = 'var(--edge)' }}
+                className="project-delete"
+                aria-label={`Delete ${p.title}`}
               >✕</button>
-            </div>
+            </article>
           ))}
 
           {!creating && (
-            <div onClick={() => setCreating(true)}
-              style={{ border: '1px dashed var(--edge)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 160, cursor: 'pointer', transition: 'border-color .15s' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--dim)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--edge)'}
-            >
-              <div style={{ fontSize: 20, color: 'var(--dim)' }}>+</div>
-              <div style={{ fontSize: 12, color: 'var(--dim)', fontWeight: 300 }}>New story bible</div>
-            </div>
+            <button className="project-new-card" onClick={() => setCreating(true)}>
+              <span aria-hidden="true">＋</span>
+              <b>New story bible</b>
+              <small>Build a world from the first page</small>
+            </button>
           )}
         </div>
-      </div>
+      </main>
     </div>
   )
 }
