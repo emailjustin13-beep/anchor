@@ -719,7 +719,7 @@ export default function WritingStudio({
 
       <section className="screenplay-main">
         <div className="screenplay-toolbar no-print">
-          <span className="screenplay-studio-version">Studio 0.4.5</span>
+          <span className="screenplay-studio-version">Studio 0.4.6</span>
           <input
             className="screenplay-title-input"
             value={title}

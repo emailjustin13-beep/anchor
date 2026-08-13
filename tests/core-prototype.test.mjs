@@ -135,7 +135,7 @@ test('same-user auth refreshes preserve and restore the open project', async () 
   assert.match(app, /SIGNED_IN can fire again when a browser tab regains focus/)
   assert.match(app, /onSelect=\{openProject\}/)
   assert.doesNotMatch(app, /onAuthStateChange\(\(_event, nextSession\)/)
-  assert.match(layout, /Editor 0\.4\.5 Visual/)
+  assert.match(layout, /Editor 0\.4\.6 Contrast/)
 })
 
 test('every AI workflow uses a closed structured schema with evidence', async () => {
