@@ -19,7 +19,7 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
     try {
       project = await onCreate(form)
     } catch (error) {
-      alert('Could not create the story bible: ' + error.message)
+      alert('Could not create the project: ' + error.message)
       setSaving(false)
       return
     }
@@ -33,7 +33,7 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
         content:    scriptPaste.trim(),
       })
       if (scriptError) {
-        alert('The story bible was created, but the script could not be saved: ' + scriptError.message)
+        alert('The project was created, but the script could not be saved: ' + scriptError.message)
         setSaving(false)
         onSelect(project)
         return
@@ -93,7 +93,6 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
       {/* Hero */}
       <header className="project-hero">
         <div className="project-hero-orbit" aria-hidden="true" />
-        <div className="project-hero-kicker"><span /> Story intelligence for writers <span /></div>
         <div className="project-wordmark">
           Anchor
         </div>
@@ -108,9 +107,9 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
           <div>
             <span className="project-library-eyebrow">Private workspace</span>
             <h1>Your stories</h1>
-            <p>{projects.length === 0 ? 'Create your first story bible.' : `${projects.length} ${projects.length === 1 ? 'world' : 'worlds'} waiting for you.`}</p>
+            <p>{projects.length === 0 ? 'Create your first project.' : `${projects.length} ${projects.length === 1 ? 'story' : 'stories'} in progress.`}</p>
           </div>
-          <button className="btn btn-gold btn-sm" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> New story bible</button>
+          <button className="btn btn-gold btn-sm" onClick={() => setCreating(true)}><span aria-hidden="true">＋</span> New project</button>
         </div>
 
         {/* Create form */}
@@ -118,7 +117,7 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
           <div className="card project-create-card fade-in">
             <div className="project-create-heading">
               <span>New world</span>
-              <h2>Start a story bible</h2>
+              <h2>Start a new project</h2>
             </div>
 
             <div className="field">
@@ -201,8 +200,8 @@ export default function ProjectSelector({ projects, onCreate, onSelect, onDelete
           {!creating && (
             <button className="project-new-card" onClick={() => setCreating(true)}>
               <span aria-hidden="true">＋</span>
-              <b>New story bible</b>
-              <small>Build a world from the first page</small>
+              <b>New project</b>
+              <small>Begin with a blank page or existing draft</small>
             </button>
           )}
         </div>

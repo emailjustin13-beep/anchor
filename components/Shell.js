@@ -199,7 +199,7 @@ export default function Shell({ project, onExit, onSignOut }) {
       {/* Main */}
       <main className="anchor-shell-main">
         {loading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13, fontWeight: 300 }}>Loading story bible…</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13, fontWeight: 300 }}>Loading project…</div>
         ) : (
           <>
             {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onNavigate={setModule} pulseCache={pulseCache} setPulseCache={setPulseCache} pulseScriptId={pulseScriptId} setPulseScriptId={setPulseScriptId} />}

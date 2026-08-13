@@ -57,7 +57,7 @@ export default function AuthGate() {
         <div className="auth-eyebrow">Private writing studio</div>
         <div className="auth-wordmark">Anchor</div>
         <div className="auth-copy">
-          Sign in to open your private story bibles and screenplays.
+          Sign in to open your private writing projects.
         </div>
         <button className="btn auth-google" type="button" onClick={signInWithGoogle} disabled={!!busy}>
           <span aria-hidden="true">G</span>

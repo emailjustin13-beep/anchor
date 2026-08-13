@@ -154,11 +154,6 @@ label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); 
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   overflow:hidden; border-bottom:1px solid var(--edge);
 }
-.project-hero::before {
-  content:"STORY  /  STRUCTURE  /  MEMORY"; position:absolute; top:34px; left:50%;
-  transform:translateX(-50%); color:#A8ABB2; font-size:9px; letter-spacing:.34em;
-  white-space:nowrap;
-}
 .project-hero::after {
   content:""; position:absolute; left:50%; bottom:-1px; width:1px; height:31px;
   background:linear-gradient(var(--gold), transparent);
@@ -168,12 +163,6 @@ label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); 
   transform:translateX(-50%); border:1px solid rgba(225,189,105,.18); border-radius:50%;
   box-shadow:0 0 100px rgba(225,189,105,.025) inset;
 }
-.project-hero-kicker {
-  display:flex; align-items:center; gap:13px; margin-bottom:20px;
-  color:var(--gold); font-size:9px; font-weight:500; letter-spacing:.24em; text-transform:uppercase;
-}
-.project-hero-kicker span { width:32px; height:1px; background:linear-gradient(90deg, transparent, var(--gold)); }
-.project-hero-kicker span:last-child { transform:rotate(180deg); }
 .project-wordmark {
   position:relative; color:var(--paper); font:300 clamp(78px, 11vw, 148px)/.72 var(--font-display);
   letter-spacing:.17em; text-indent:.17em; text-transform:uppercase;
