@@ -17,6 +17,7 @@ Anchor is a private screenplay studio with story-integrity intelligence. It reme
 - Manual **Pressure Test**, **Scan Scene**, **Scan Draft**, and **X-Ray** tools
 - Local Story Memory and an issue ledger with stable identity, dismissal, resolution, and reopening
 - Google-first Supabase Auth with email fallback and owner-scoped row-level security
+- Private Supabase Storage with owner-scoped image policies and expiring signed URLs
 - Server-only Anthropic requests with rate limits, retry handling, deadlines, size limits, and structured responses
 
 AI runs only after an explicit writer action. Nothing proposed by AI becomes canon until the writer confirms it.
@@ -25,10 +26,12 @@ AI runs only after an explicit writer action. Nothing proposed by AI becomes can
 
 1. Copy `.env.example` to `.env.local` and fill in the three required values.
 2. For a new Supabase project, run `supabase-schema.sql` in its SQL Editor.
-3. For the existing Anchor database, run `supabase-migration-core-prototype.sql`. The migration is safe to rerun. Legacy projects remain private and hidden until the optional owner-claim statement at the bottom of that file is deliberately completed.
-4. In Supabase **Authentication → Sign In / Providers → Google**, copy the callback URL. Add it to a Google OAuth Web client, then configure and enable Google inside Supabase.
-5. In Supabase **Authentication → URL Configuration**, add every deployed application URL. Vercel preview builds use `https://*-justins-space-s-projects.vercel.app/**`.
-6. Install and start:
+3. For the existing Anchor database, run `supabase-migration-core-prototype.sql`. The migration is safe to rerun. Legacy projects remain private and hidden until their ownership is deliberately confirmed.
+4. Resolve every legacy project with a null `owner_id`, then run `supabase/migrations/20260814040230_release_hardening.sql`. It refuses to apply while any project remains ownerless.
+5. Follow `docs/production-release-checklist.md` for environment scopes, domain assignment, Auth redirects, deployment matching, and two-user release verification.
+6. In Supabase **Authentication → Sign In / Providers → Google**, copy the callback URL. Add it to a Google OAuth Web client, then configure and enable Google inside Supabase.
+7. In Supabase **Authentication → URL Configuration**, add every deployed application URL. Vercel preview builds use `https://*-justins-space-s-projects.vercel.app/**`.
+8. Install and start:
 
 ```bash
 npm ci
@@ -46,6 +49,6 @@ npm run build
 npm audit --omit=dev
 ```
 
-The suite currently contains 31 regression tests covering explicit AI execution, private data access, screenplay editing, file interchange, recovery, evidence navigation, Story Memory, issue reconciliation, Case 02, and release configuration. GitHub Actions runs the tests and production build on pushes and pull requests.
+The suite currently contains 36 regression tests covering explicit AI execution, private data access, private Storage URLs, database release hardening, screenplay editing, file interchange, recovery, evidence navigation, Story Memory, issue reconciliation, Case 02, and release configuration. GitHub Actions runs the tests and production build on pushes and pull requests.
 
 Production should only be promoted from the exact commit that passed CI. After assigning a production domain, add it to Supabase Auth and verify Google sign-in and owner isolation on a device that is not signed into Vercel.

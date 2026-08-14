@@ -168,10 +168,11 @@ test('story chronology and character life state are persisted as owned records',
 })
 
 test('release configuration documents every AI model and enforces CI', async () => {
-  const [environment, workflow, readme] = await Promise.all([
+  const [environment, workflow, readme, checklist] = await Promise.all([
     read('.env.example'),
     read('.github/workflows/anchor-ci.yml'),
     read('README.md'),
+    read('docs/production-release-checklist.md'),
   ])
   assert.match(environment, /^ANTHROPIC_MODEL=/m)
   assert.match(environment, /^ANTHROPIC_DRAFT_SCAN_MODEL=/m)
@@ -181,7 +182,11 @@ test('release configuration documents every AI model and enforces CI', async () 
   assert.match(workflow, /npm test/)
   assert.match(workflow, /npm run build/)
   assert.match(readme, /Editor 0\.4\.8, Inky Motion/)
-  assert.match(readme, /31 regression tests/)
+  assert.match(readme, /36 regression tests/)
+  assert.match(checklist, /ANTHROPIC_API_KEY/)
+  assert.match(checklist, /does not require Vercel authentication/)
+  assert.match(checklist, /two separate test users/)
+  assert.match(checklist, /same commit/)
 })
 
 test('timeout copy follows configured deadlines without a stale duration', async () => {
