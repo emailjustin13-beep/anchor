@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { callAI, buildFullReadPrompt, INSIGHTS_SCHEMA, FULL_READ_SCHEMA } from '../../lib/ai'
+import { normalizeRelationshipTension } from '../../lib/relationshipTension.mjs'
 
 const REL_COLORS = { ally:'#3FB950',rival:'#F85149',romantic:'#DB61A2',family:'#58A6FF',mentor:'#D2A8FF',enemy:'#FF7B72',complicated:'#FFA657',stranger:'#6A6A88' }
 const FORMAT_LABELS = { screenplay:'Screenplay',novel:'Novel',short_story:'Short Story' }
@@ -104,7 +105,7 @@ export default function BibleDashboard({ project, characters, relationships, rel
     )
     if (!rel && onCreateRelationship) rel = await onCreateRelationship(charA.id, charB.id)
     if (!rel) return
-    const tension = Math.max(0, Math.min(100, Math.round(shift.tension || 0)))
+    const tension = normalizeRelationshipTension(shift.tension)
     await onUpdateRelationship(rel.id, {
       type:    shift.type,
       tension,

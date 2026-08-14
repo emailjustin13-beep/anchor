@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { normalizeRelationshipTension } from '../lib/relationshipTension.mjs'
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
@@ -166,6 +167,30 @@ test('story chronology and character life state are persisted as owned records',
   assert.match(firstRead, /relationship_events/)
   assert.match(firstRead, /character_state_events/)
   assert.match(ties, /sequence_index/)
+})
+
+test('relationship tension is always a whole score before it reaches a marker or the database', async () => {
+  const [shell, firstRead, ties, editor, dashboard] = await Promise.all([
+    read('components/Shell.js'),
+    read('components/bible/FirstRead.js'),
+    read('components/bible/TiesThatBind.js'),
+    read('components/editor/WritingStudio.js'),
+    read('components/bible/BibleDashboard.js'),
+  ])
+
+  assert.equal(normalizeRelationshipTension(60.5), 61)
+  assert.equal(normalizeRelationshipTension('42.2'), 42)
+  assert.equal(normalizeRelationshipTension(-12), 0)
+  assert.equal(normalizeRelationshipTension(125.1), 100)
+  assert.equal(normalizeRelationshipTension(undefined, 30), 30)
+  assert.equal(normalizeRelationshipTension('not a score', 30), 30)
+
+  for (const source of [shell, firstRead, ties, editor, dashboard]) {
+    assert.match(source, /normalizeRelationshipTension/)
+  }
+  assert.match(shell, /sequence_index: Math\.max\(0, Math\.round\(Number\(event\.sequence_index\) \|\| 0\)\)/)
+  assert.match(firstRead, /tension:\s+normalizeRelationshipTension\(r\.tension, 30\)/)
+  assert.match(ties, /tension: normalizeRelationshipTension\(relForm\.tension, loreRel\.tension\)/)
 })
 
 test('release configuration documents every AI model and enforces CI', async () => {

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { normalizeRelationshipTension } from '../../lib/relationshipTension.mjs'
 
 const REL_COLORS = { ally: '#3FB950', rival: '#F85149', romantic: '#DB61A2', family: '#58A6FF', mentor: '#D2A8FF', enemy: '#FF7B72', complicated: '#FFA657', stranger: '#6A6A88' }
 const REL_TYPES  = Object.keys(REL_COLORS)
@@ -83,7 +84,13 @@ export default function TiesThatBind({ characters, relationships, relationshipEv
 
   function openRelLore(rel) {
     setLoreRel(rel)
-    setRelForm({ type: rel.type, status: rel.status, history: rel.history, notes: rel.notes, tension: rel.tension })
+    setRelForm({
+      type: rel.type,
+      status: rel.status,
+      history: rel.history,
+      notes: rel.notes,
+      tension: normalizeRelationshipTension(rel.tension),
+    })
     setAddingArc(false)
     setArcForm(f => ({ ...f, segment_label: actFilter !== 'All' ? actFilter : '' }))
   }
@@ -91,9 +98,10 @@ export default function TiesThatBind({ characters, relationships, relationshipEv
   async function saveRel() {
     if (!loreRel) return
     setSaving(true)
-    await onUpdateRelationship(loreRel.id, relForm)
+    const payload = { ...relForm, tension: normalizeRelationshipTension(relForm.tension) }
+    await onUpdateRelationship(loreRel.id, payload)
     setSaving(false)
-    setLoreRel(r => ({ ...r, ...relForm }))
+    setLoreRel(r => ({ ...r, ...payload }))
   }
 
   async function addArcEntry() {
@@ -104,7 +112,7 @@ export default function TiesThatBind({ characters, relationships, relationshipEv
       segment_type: arcForm.segment_type || 'section',
       segment_label: arcForm.segment_label.trim(),
       relationship_type: relForm.type || loreRel.type,
-      tension: relForm.tension ?? loreRel.tension ?? 0,
+      tension: normalizeRelationshipTension(relForm.tension, loreRel.tension),
       summary: arcForm.note.trim(),
       evidence: arcForm.evidence.trim(),
       source: 'manual',
@@ -369,7 +377,7 @@ export default function TiesThatBind({ characters, relationships, relationshipEv
                         <label style={{ margin: 0 }}>Tension</label>
                         <span style={{ fontSize: 11, color: relForm.tension > 60 ? '#F85149' : 'var(--muted)', fontWeight: 400 }}>{relForm.tension}/100</span>
                       </div>
-                      <input type="range" min={0} max={100} value={relForm.tension || 0} onChange={e => setRelForm(f => ({ ...f, tension: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: 'var(--gold)', cursor: 'pointer' }} />
+                      <input type="range" min={0} max={100} value={normalizeRelationshipTension(relForm.tension)} onChange={e => setRelForm(f => ({ ...f, tension: normalizeRelationshipTension(e.target.value) }))} style={{ width: '100%', accentColor: 'var(--gold)', cursor: 'pointer' }} />
                     </div>
                   </div>
 

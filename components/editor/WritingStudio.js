@@ -28,6 +28,7 @@ import {
 } from '../../lib/screenplay'
 import FirstRead from '../bible/FirstRead'
 import { ScreenplayKeyboard, ScreenplayParagraph } from './screenplayExtensions'
+import { normalizeRelationshipTension } from '../../lib/relationshipTension.mjs'
 import { findEvidenceRange, findingFingerprint, normalizeFindingText } from '../../lib/draftReview'
 import {
   buildStoryMemory,
@@ -673,7 +674,7 @@ export default function WritingStudio({
     )
     if (!relationship) relationship = await onCreateRelationship?.(review.charA.id, review.charB.id)
     if (!relationship) return setMessage('Could not create this relationship.')
-    const tension = Math.max(0, Math.min(100, Math.round(review.proposed_tension || 0)))
+    const tension = normalizeRelationshipTension(review.proposed_tension)
     await onUpdateRelationship(relationship.id, { type:review.proposed_type, tension, ai_reasoning:(review.reasoning || []).join('\n') })
     await onCreateRelationshipEvent?.(relationship.id, {
       sequence_index:Math.max(0, ...relationshipEvents.map(event => event.sequence_index || 0)) + 1,

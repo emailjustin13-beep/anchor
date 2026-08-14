@@ -6,6 +6,7 @@ import CharactersModule  from './bible/CharactersModule'
 import TiesThatBind      from './bible/TiesThatBind'
 import WritingStudio     from './editor/WritingStudio'
 import Onboarding        from './shared/Onboarding'
+import { normalizeRelationshipTension } from '../lib/relationshipTension.mjs'
 
 const NAV = [
   { id: 'bible',      icon: '◈', label: 'Story Bible'    },
@@ -42,8 +43,14 @@ export default function Shell({ project, onExit, onSignOut }) {
       supabase.from('script_versions').select('*').eq('project_id', project.id).order('created_at', { ascending:false }),
     ])
     setCharacters(chars.data || [])
-    setRels(rels.data || [])
-    setRelationshipEvents(relEvents.data || [])
+    setRels((rels.data || []).map(relationship => ({
+      ...relationship,
+      tension: normalizeRelationshipTension(relationship.tension),
+    })))
+    setRelationshipEvents((relEvents.data || []).map(event => ({
+      ...event,
+      tension: normalizeRelationshipTension(event.tension),
+    })))
     setCharacterStateEvents(stateEvents.data || [])
     setScript(scr.data || null)
     scriptRef.current = scr.data || null
@@ -89,7 +96,10 @@ export default function Shell({ project, onExit, onSignOut }) {
   }
 
   async function updateRelationship(id, patch) {
-    const { data } = await supabase.from('relationships').update(patch).eq('id', id).select().single()
+    const payload = Object.prototype.hasOwnProperty.call(patch, 'tension')
+      ? { ...patch, tension: normalizeRelationshipTension(patch.tension) }
+      : patch
+    const { data } = await supabase.from('relationships').update(payload).eq('id', id).select().single()
     if (data) setRels(p => p.map(r => r.id === id ? data : r))
   }
 
@@ -99,10 +109,15 @@ export default function Shell({ project, onExit, onSignOut }) {
   }
 
   async function createRelationshipEvent(relationshipId, event) {
+    const payload = {
+      ...event,
+      tension: normalizeRelationshipTension(event.tension),
+      sequence_index: Math.max(0, Math.round(Number(event.sequence_index) || 0)),
+    }
     const { data, error } = await supabase.from('relationship_events').insert({
       project_id: project.id,
       relationship_id: relationshipId,
-      ...event,
+      ...payload,
     }).select().single()
     if (error) throw error
     if (data) setRelationshipEvents(items => [...items, data].sort((a, b) => a.sequence_index - b.sequence_index))

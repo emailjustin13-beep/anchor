@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { callAI, buildFirstReadPrompt, FIRST_READ_SCHEMA } from '../../lib/ai'
+import { normalizeRelationshipTension } from '../../lib/relationshipTension.mjs'
 
 const REL_TYPES = ['ally','rival','romantic','family','mentor','enemy','complicated','stranger']
 const REL_COLORS = { ally:'#3FB950',rival:'#F85149',romantic:'#DB61A2',family:'#58A6FF',mentor:'#D2A8FF',enemy:'#FF7B72',complicated:'#FFA657',stranger:'#6A6A88' }
@@ -48,7 +49,7 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
       const rels = (result.relationships || []).map((r, i) => ({
         ...r,
         _tempId: `rel_${i}`,
-        tension: r.tension ?? 30,
+        tension: normalizeRelationshipTension(r.tension, 30),
         _keep: true,
       }))
       const relEvents = (result.relationship_events || []).map((event, i) => ({
@@ -128,7 +129,7 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
           character_a: a.id,
           character_b: b.id,
           type:        r.type || 'stranger',
-          tension:     r.tension ?? 30,
+          tension:     normalizeRelationshipTension(r.tension, 30),
           status:      r.status || '',
           history:     r.history || '',
         }).select().single()
