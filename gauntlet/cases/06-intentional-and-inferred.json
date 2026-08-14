@@ -1,0 +1,27 @@
+{
+  "id": "case-06-intentional-and-inferred",
+  "title": "False-positive suppression",
+  "characters": [
+    { "id": "tessa", "name": "Tessa Gray", "role": "Missing operative", "goals": "Test the leak", "fears": "Exposure", "personality": "Strategic", "voice": "Dry", "life_state": "missing" },
+    { "id": "jon", "name": "Jon Pike", "role": "Suspect", "goals": "Conceal his visit", "fears": "Arrest", "personality": "Evasive", "voice": "Defensive", "life_state": "alive" },
+    { "id": "kira", "name": "Kira Vale", "role": "Witness", "goals": "Warn security", "fears": "Being ignored", "personality": "Practical", "voice": "Direct", "life_state": "alive" },
+    { "id": "daniels", "name": "Security Officer Daniels", "role": "Security officer", "goals": "Protect the building", "fears": "A breach", "personality": "Reserved", "voice": "Formal", "life_state": "alive" }
+  ],
+  "relationships": [],
+  "issues": {},
+  "revisions": [
+    {
+      "id": "mysteries-lies-and-visible-clues",
+      "script": "[scene]INT. ARCHIVE VAULT - NIGHT\n[action]Maya locks a red folder inside the safe.\n[scene]INT. ARCHIVE VAULT - LATER\n[action]The safe stands open and the red folder is gone. Scratches ring the keyhole and a bent pick lies on the floor.\n[scene]INT. INTERVIEW ROOM - DAY\n[character]JON\n[dialogue]I have never been inside the archive.\n[action]Jon avoids the camera and hides mud-stained shoes beneath his chair.\n[scene]EXT. RIVER WAREHOUSE - DAY\n[action]Tessa Gray, reported missing yesterday, steps from a hidden observation room.\n[character]TESSA\n[dialogue]The disappearance was staged to expose the leak.\n[scene]INT. SECURITY DESK - DAY\n[action]Kira approaches Security Officer Daniels for the first time.\n[character]KIRA\n[dialogue]Someone opened the vault. Check the cameras.",
+      "expect": { "active": [], "resolved": [], "dismissed": [], "forbidden": ["red folder", "jon contradicts reality", "tessa alive", "keyhole", "kira talks to daniels"], "scan_mode": "initial" },
+      "mock": {
+        "extra_findings": [
+          { "category": "continuity", "priority": "low", "title": "The red folder vanished", "summary": "The folder is missing.", "question": "Who removed the red folder?", "integrity_basis": "intentional_mystery", "conflicting_fact_a": "The folder was secured.", "conflicting_fact_b": "The folder is gone.", "plausible_inference": false, "inference_explanation": "The culprit is intentionally unrevealed.", "possibilities": [], "characters": ["Maya"], "evidence": [{ "quote": "Maya locks a red folder inside the safe.", "location": "INT. ARCHIVE VAULT - NIGHT" }, { "quote": "The safe stands open and the red folder is gone.", "location": "INT. ARCHIVE VAULT - LATER" }] },
+          { "category": "continuity", "priority": "low", "title": "The safe opens despite being locked", "summary": "The safe is later open.", "question": "How did the safe open?", "integrity_basis": "incompatible_facts", "conflicting_fact_a": "The safe was locked.", "conflicting_fact_b": "The safe is open.", "plausible_inference": true, "inference_explanation": "Scratches and the bent pick reasonably imply lock manipulation.", "possibilities": [], "characters": ["Maya"], "evidence": [{ "quote": "Maya locks a red folder inside the safe.", "location": "INT. ARCHIVE VAULT - NIGHT" }, { "quote": "Scratches ring the keyhole and a bent pick lies on the floor.", "location": "INT. ARCHIVE VAULT - LATER" }] },
+          { "category": "life_state", "priority": "low", "title": "Tessa is alive after being missing", "summary": "Tessa returns.", "question": "How is Tessa alive?", "integrity_basis": "intentional_mystery", "conflicting_fact_a": "Tessa was reported missing.", "conflicting_fact_b": "Tessa appears alive.", "plausible_inference": false, "inference_explanation": "Missing never established death, and the staging is explicit.", "possibilities": [], "characters": ["Tessa Gray"], "evidence": [{ "quote": "Tessa Gray, reported missing yesterday, steps from a hidden observation room.", "location": "EXT. RIVER WAREHOUSE - DAY" }, { "quote": "The disappearance was staged to expose the leak.", "location": "EXT. RIVER WAREHOUSE - DAY" }] },
+          { "category": "character", "priority": "low", "title": "Kira talks to Daniels", "summary": "Kira speaks to an unfamiliar officer.", "question": "Why would Kira talk to Daniels?", "integrity_basis": "general_craft", "conflicting_fact_a": "They have not met.", "conflicting_fact_b": "Kira reports a breach.", "plausible_inference": false, "inference_explanation": "This does not conflict with an established trait or relationship.", "possibilities": [], "characters": ["Kira Vale", "Security Officer Daniels"], "evidence": [{ "quote": "Kira approaches Security Officer Daniels for the first time.", "location": "INT. SECURITY DESK - DAY" }] }
+        ]
+      }
+    }
+  ]
+}

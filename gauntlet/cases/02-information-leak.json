@@ -1,0 +1,114 @@
+{
+  "id": "case-02-information-leak",
+  "title": "Unsupported knowledge, mystery suppression, relay, and reopening",
+  "characters": [
+    { "id": "lena", "name": "Dr. Lena Morris", "role": "Doctor", "goals": "Complete the transfer", "fears": "Exposure", "personality": "Controlled", "voice": "Clinical", "life_state": "alive" },
+    { "id": "marcus", "name": "Marcus Reed", "role": "Accomplice", "goals": "Help Lena", "fears": "Discovery", "personality": "Nervous", "voice": "Brief", "life_state": "alive" },
+    { "id": "kira", "name": "Kira Vale", "role": "Hospital staff", "goals": "Learn the truth", "fears": "Being excluded", "personality": "Observant", "voice": "Direct", "life_state": "alive" },
+    { "id": "daniels", "name": "Security Officer Daniels", "role": "Security officer", "goals": "Protect the hospital", "fears": "A breach", "personality": "Cautious", "voice": "Formal", "life_state": "alive" }
+  ],
+  "relationships": [],
+  "issues": {
+    "kira_knowledge": {
+      "finding": {
+        "category": "continuity",
+        "priority": "high",
+        "title": "Kira knows the private entrance and password",
+        "summary": "Kira states two confidential details after the draft shows she could not read the only visible clue.",
+        "question": "How did Kira learn both private transfer details?",
+        "integrity_basis": "unsupported_knowledge",
+        "conflicting_fact_a": "Lena shares the details privately and Kira cannot read Marcus's palm.",
+        "conflicting_fact_b": "Kira later states both the ambulance bay and bluebird password.",
+        "plausible_inference": false,
+        "inference_explanation": "No on-page information path connects Kira to both details.",
+        "possibilities": [],
+        "characters": ["Kira Vale", "Marcus Reed"],
+        "evidence": [
+          { "quote": "Kira studies the writing on Marcus's palm, but his hand closes before she can read it.", "location": "INT. CITY HOSPITAL - CAFETERIA - NIGHT" },
+          { "quote": "When the driver arrives, ask for the word bluebird.", "location": "INT. CITY HOSPITAL - SECURITY DESK - LATER" }
+        ]
+      },
+      "match": { "categories": ["continuity", "character"], "integrity_bases": ["unsupported_knowledge"], "characters": ["Kira Vale"], "evidence_all": ["before she can read it", "bluebird"] }
+    },
+    "lena_knowledge": {
+      "finding": {
+        "category": "continuity",
+        "priority": "medium",
+        "title": "Lena knows exactly what Kira told Daniels",
+        "summary": "Kira leaves without speaking to Lena, but Lena later names both details Kira disclosed.",
+        "question": "How did Lena learn exactly what Kira told Daniels?",
+        "integrity_basis": "unsupported_knowledge",
+        "conflicting_fact_a": "Kira leaves without speaking to Lena.",
+        "conflicting_fact_b": "Lena later says Kira knew the entrance and password.",
+        "plausible_inference": false,
+        "inference_explanation": "The draft does not show Daniels or Kira relaying the information to Lena.",
+        "possibilities": [],
+        "characters": ["Dr. Lena Morris", "Kira Vale", "Security Officer Daniels"],
+        "evidence": [
+          { "quote": "Kira leaves without speaking to Lena.", "location": "INT. CITY HOSPITAL - SECURITY DESK - LATER" },
+          { "quote": "Kira knew the entrance and the password.", "location": "INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER" }
+        ]
+      },
+      "match": { "categories": ["continuity", "character"], "integrity_bases": ["unsupported_knowledge"], "characters": ["Dr. Lena Morris"], "evidence_all": ["without speaking to lena", "kira knew"] }
+    }
+  },
+  "revisions": [
+    {
+      "id": "initial-gaps",
+      "script": "[scene]INT. CITY HOSPITAL - RECORDS ROOM - NIGHT\n[action]Dr. Lena Morris locks the door. Marcus Reed stands beside a cart.\n[character]LENA\n[dialogue]The transfer uses the ambulance bay. The driver will ask for the word bluebird.\n[character]LENA\n[dialogue]No one else knows. Not even Kira.\n[action]Lena places a red folder inside a wall safe.\n[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]Kira studies the writing on Marcus's palm, but his hand closes before she can read it.\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[character]KIRA\n[dialogue]The midnight transfer is using the ambulance bay.\n[character]KIRA\n[dialogue]When the driver arrives, ask for the word bluebird.\n[action]Kira leaves without speaking to Lena. Daniels checks the transfer log and picks up the phone.\n[scene]INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER\n[action]Lena opens the wall safe. The red folder is gone.\n[character]LENA\n[dialogue]Kira knew the entrance and the password.",
+      "expect": { "active": ["kira_knowledge", "lena_knowledge"], "resolved": [], "dismissed": [], "forbidden": ["red folder", "talking to daniels", "character reversal"], "scan_mode": "initial" },
+      "mock": {
+        "new": ["kira_knowledge", "lena_knowledge"],
+        "extra_findings": [
+          { "category": "continuity", "priority": "low", "title": "The red folder is missing", "summary": "The folder is gone.", "question": "Who removed the red folder?", "integrity_basis": "intentional_mystery", "conflicting_fact_a": "The folder was placed in a safe.", "conflicting_fact_b": "The folder is gone.", "plausible_inference": false, "inference_explanation": "Its removal is deliberately unexplained.", "possibilities": [], "characters": ["Dr. Lena Morris"], "evidence": [{ "quote": "Lena places a red folder inside a wall safe.", "location": "INT. CITY HOSPITAL - RECORDS ROOM - NIGHT" }, { "quote": "The red folder is gone.", "location": "INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER" }] },
+          { "category": "character", "priority": "low", "title": "Kira talks to Daniels", "summary": "Kira speaks to an unfamiliar officer.", "question": "Why does Kira trust Daniels?", "integrity_basis": "general_craft", "conflicting_fact_a": "Daniels is unfamiliar.", "conflicting_fact_b": "Kira talks to him.", "plausible_inference": false, "inference_explanation": "This is a motivation question, not an established reversal.", "possibilities": [], "characters": ["Kira Vale", "Security Officer Daniels"], "evidence": [{ "quote": "The midnight transfer is using the ambulance bay.", "location": "INT. CITY HOSPITAL - SECURITY DESK - LATER" }] }
+        ]
+      }
+    },
+    {
+      "id": "recorder-bridge",
+      "script": "[scene]INT. CITY HOSPITAL - RECORDS ROOM - NIGHT\n[action]Dr. Lena Morris locks the door. Marcus Reed stands beside a cart. A recorder blinks beneath the cart.\n[character]LENA\n[dialogue]The transfer uses the ambulance bay. The driver will ask for the word bluebird.\n[character]LENA\n[dialogue]No one else knows. Not even Kira.\n[action]Lena places a red folder inside a wall safe.\n[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]Kira studies the writing on Marcus's palm, but his hand closes before she can read it. Kira plays the captured conversation through her earpiece.\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[character]KIRA\n[dialogue]The midnight transfer is using the ambulance bay.\n[character]KIRA\n[dialogue]When the driver arrives, ask for the word bluebird.\n[action]Kira leaves without speaking to Lena. Daniels checks the transfer log and picks up the phone.\n[scene]INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER\n[action]Lena opens the wall safe. The red folder is gone.\n[character]LENA\n[dialogue]Kira knew the entrance and the password.",
+      "expect": { "active": ["lena_knowledge"], "resolved": ["kira_knowledge"], "dismissed": [], "forbidden": ["red folder", "recorder location", "character reversal"], "scan_mode": "incremental" },
+      "mock": {
+        "decisions": {
+          "kira_knowledge": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "Kira plays the captured conversation through her earpiece.", "location": "INT. CITY HOSPITAL - CAFETERIA - NIGHT" }], "decision_explanation": "The recorder and playback supply the information path." },
+          "lena_knowledge": { "status": "still_open", "plausible_inference": false }
+        },
+        "duplicate_new": ["kira_knowledge"]
+      }
+    },
+    {
+      "id": "recorder-moved",
+      "script": "[scene]INT. CITY HOSPITAL - RECORDS ROOM - NIGHT\n[action]Dr. Lena Morris locks the door. Marcus Reed stands beside a cart.\n[character]LENA\n[dialogue]The transfer uses the ambulance bay. The driver will ask for the word bluebird.\n[character]LENA\n[dialogue]No one else knows. Not even Kira.\n[action]Lena places a red folder inside a wall safe.\n[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]A recorder is taped beneath the cafeteria table. Kira studies the writing on Marcus's palm, but his hand closes before she can read it. Kira listens to the captured records-room conversation through her earpiece.\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[character]KIRA\n[dialogue]The midnight transfer is using the ambulance bay.\n[character]KIRA\n[dialogue]When the driver arrives, ask for the word bluebird.\n[action]Kira leaves without speaking to Lena. Daniels checks the transfer log and picks up the phone.\n[scene]INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER\n[action]Lena opens the wall safe. The red folder is gone.\n[character]LENA\n[dialogue]Kira knew the entrance and the password.",
+      "expect": { "active": ["lena_knowledge"], "resolved": ["kira_knowledge"], "dismissed": [], "forbidden": ["red folder", "recorder location", "recording location conflict"], "scan_mode": "incremental" },
+      "mock": {
+        "decisions": {
+          "kira_knowledge": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "Kira listens to the captured records-room conversation through her earpiece.", "location": "INT. CITY HOSPITAL - CAFETERIA - NIGHT" }], "decision_explanation": "Moving the playback device does not remove the information bridge." },
+          "lena_knowledge": { "status": "still_open", "plausible_inference": false }
+        }
+      }
+    },
+    {
+      "id": "daniels-relays-to-lena",
+      "script": "[scene]INT. CITY HOSPITAL - RECORDS ROOM - NIGHT\n[action]Dr. Lena Morris locks the door. Marcus Reed stands beside a cart.\n[character]LENA\n[dialogue]The transfer uses the ambulance bay. The driver will ask for the word bluebird.\n[character]LENA\n[dialogue]No one else knows. Not even Kira.\n[action]Lena places a red folder inside a wall safe.\n[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]A recorder is taped beneath the cafeteria table. Kira studies the writing on Marcus's palm, but his hand closes before she can read it. Kira listens to the captured records-room conversation through her earpiece.\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[character]KIRA\n[dialogue]The midnight transfer is using the ambulance bay.\n[character]KIRA\n[dialogue]When the driver arrives, ask for the word bluebird.\n[action]Kira leaves without speaking to Lena. Daniels calls Lena and repeats that Kira named the ambulance bay and the word bluebird.\n[scene]INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER\n[action]Lena opens the wall safe. The red folder is gone.\n[character]LENA\n[dialogue]Kira knew the entrance and the password.",
+      "expect": { "active": [], "resolved": ["kira_knowledge", "lena_knowledge"], "dismissed": [], "forbidden": ["red folder", "recorder location"], "scan_mode": "incremental" },
+      "mock": {
+        "decisions": {
+          "kira_knowledge": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "Kira listens to the captured records-room conversation through her earpiece.", "location": "INT. CITY HOSPITAL - CAFETERIA - NIGHT" }] },
+          "lena_knowledge": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "Daniels calls Lena and repeats that Kira named the ambulance bay and the word bluebird.", "location": "INT. CITY HOSPITAL - SECURITY DESK - LATER" }], "decision_explanation": "Daniels directly relays both details to Lena." }
+        }
+      }
+    },
+    {
+      "id": "recorder-removed-reopens-kira",
+      "script": "[scene]INT. CITY HOSPITAL - RECORDS ROOM - NIGHT\n[action]Dr. Lena Morris locks the door. Marcus Reed stands beside a cart.\n[character]LENA\n[dialogue]The transfer uses the ambulance bay. The driver will ask for the word bluebird.\n[character]LENA\n[dialogue]No one else knows. Not even Kira.\n[action]Lena places a red folder inside a wall safe.\n[scene]INT. CITY HOSPITAL - CAFETERIA - NIGHT\n[action]Kira studies the writing on Marcus's palm, but his hand closes before she can read it.\n[scene]INT. CITY HOSPITAL - SECURITY DESK - LATER\n[character]KIRA\n[dialogue]The midnight transfer is using the ambulance bay.\n[character]KIRA\n[dialogue]When the driver arrives, ask for the word bluebird.\n[action]Kira leaves without speaking to Lena. Daniels calls Lena and repeats that Kira named the ambulance bay and the word bluebird.\n[scene]INT. CITY HOSPITAL - RECORDS ROOM - MOMENTS LATER\n[action]Lena opens the wall safe. The red folder is gone.\n[character]LENA\n[dialogue]Kira knew the entrance and the password.",
+      "expect": { "active": ["kira_knowledge"], "resolved": ["lena_knowledge"], "dismissed": [], "forbidden": ["red folder", "newly worded knowledge issue", "recording location conflict"], "scan_mode": "incremental" },
+      "mock": {
+        "decisions": {
+          "kira_knowledge": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The recorder bridge was removed." },
+          "lena_knowledge": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "Daniels calls Lena and repeats that Kira named the ambulance bay and the word bluebird.", "location": "INT. CITY HOSPITAL - SECURITY DESK - LATER" }] }
+        }
+      }
+    }
+  ]
+}

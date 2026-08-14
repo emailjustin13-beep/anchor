@@ -16,6 +16,7 @@ Anchor is a private screenplay studio with story-integrity intelligence. It reme
 - First Read review flow: characters → relationships → timeline → writer confirmation
 - Manual **Pressure Test**, **Scan Scene**, **Scan Draft**, and **X-Ray** tools
 - Local Story Memory and an issue ledger with stable identity, dismissal, resolution, and reopening
+- Permanent Automated Gauntlet fixtures with deterministic CI grading and opt-in live model evaluation
 - Google-first Supabase Auth with email fallback and owner-scoped row-level security
 - Private Supabase Storage with owner-scoped image policies and expiring signed URLs
 - Server-only Anthropic requests with rate limits, retry handling, deadlines, size limits, and structured responses
@@ -45,10 +46,11 @@ npm run dev
 
 ```bash
 npm test
+npm run gauntlet -- --repeat 2
 npm run build
 npm audit --omit=dev
 ```
 
-The suite currently contains 36 regression tests covering explicit AI execution, private data access, private Storage URLs, database release hardening, screenplay editing, file interchange, recovery, evidence navigation, Story Memory, issue reconciliation, Case 02, and release configuration. GitHub Actions runs the tests and production build on pushes and pull requests.
+The suite currently contains 41 regression tests plus 7 permanent Gauntlet screenplays with 22 chronological revisions. Coverage includes explicit AI execution, private data access, private Storage URLs, database release hardening, screenplay editing, file interchange, recovery, evidence navigation, Story Memory, issue reconciliation, Case 02, false-positive suppression, model retry behavior, and release configuration. GitHub Actions runs the tests, the deterministic Gauntlet twice, and the production build on pushes and pull requests. See `docs/automated-gauntlet.md` for live model evaluation.
 
 Production should only be promoted from the exact commit that passed CI. After assigning a production domain, add it to Supabase Auth and verify Google sign-in and owner isolation on a device that is not signed into Vercel.

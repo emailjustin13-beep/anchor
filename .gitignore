@@ -1,5 +1,6 @@
 node_modules/
 .next/
+artifacts/gauntlet/
 .env
 .env.local
 .env.*.local

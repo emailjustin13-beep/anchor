@@ -69,34 +69,35 @@ test('successful HTTP responses are checked for empty, truncated, and refused ge
 })
 
 test('draft scan is a multi-finding audit distinct from the scene scan', async () => {
-  const [ai, editor] = await Promise.all([
+  const [ai, draftScan, editor] = await Promise.all([
     read('lib/ai.js'),
+    read('lib/draftScan.js'),
     read('components/editor/WritingStudio.js'),
   ])
   assert.match(ai, /DRAFT_SCAN_SCHEMA/)
-  assert.doesNotMatch(ai, /minItems|maxItems/)
-  assert.match(ai, /continuity.*character.*relationship.*life_state.*timeline/)
-  assert.match(ai, /Never rewrite, recommend adding a scene, beat, explanation, or internal reaction/)
-  assert.match(ai, /Build a hard-constraint ledger/)
-  assert.match(ai, /"Missing" means reported absent or location unknown/)
-  assert.match(ai, /Never fill the quota with weak possibilities/)
-  assert.match(ai, /changed scene text is current canon/)
-  assert.match(ai, /Scratches around a keyhole/)
-  assert.match(ai, /reasonable-audience inference gate/)
-  assert.match(ai, /plausible_inference/)
-  assert.match(ai, /existing_issue_decisions/)
-  assert.match(ai, /reopened/)
-  assert.match(ai, /resolution_evidence/)
-  assert.match(ai, /active_issue_ids/)
-  assert.match(ai, /pending_recheck/)
-  assert.match(ai, /new_findings/)
-  assert.match(ai, /unanswered_question/)
-  assert.match(ai, /intentional_mystery/)
-  assert.match(ai, /general_craft/)
-  assert.match(ai, /Two facts are not incompatible/)
-  assert.match(ai, /Do not repeat the same underlying issue/)
-  assert.match(ai, /WRITER-REVIEWED AS NOT A PROBLEM/)
-  assert.match(ai, /possibilities/)
+  assert.doesNotMatch(draftScan, /minItems|maxItems/)
+  assert.match(draftScan, /continuity.*character.*relationship.*life_state.*timeline/)
+  assert.match(draftScan, /Never rewrite, recommend adding a scene, beat, explanation, or internal reaction/)
+  assert.match(draftScan, /Build a hard-constraint ledger/)
+  assert.match(draftScan, /"Missing" means reported absent or location unknown/)
+  assert.match(draftScan, /Never fill the quota with weak possibilities/)
+  assert.match(draftScan, /changed scene text is current canon/)
+  assert.match(draftScan, /Scratches around a keyhole/)
+  assert.match(draftScan, /reasonable-audience inference gate/)
+  assert.match(draftScan, /plausible_inference/)
+  assert.match(draftScan, /existing_issue_decisions/)
+  assert.match(draftScan, /reopened/)
+  assert.match(draftScan, /resolution_evidence/)
+  assert.match(draftScan, /active_issue_ids/)
+  assert.match(draftScan, /pending_recheck/)
+  assert.match(draftScan, /new_findings/)
+  assert.match(draftScan, /unanswered_question/)
+  assert.match(draftScan, /intentional_mystery/)
+  assert.match(draftScan, /general_craft/)
+  assert.match(draftScan, /Two facts are not incompatible/)
+  assert.match(draftScan, /Do not repeat the same underlying issue/)
+  assert.match(draftScan, /WRITER-REVIEWED AS NOT A PROBLEM/)
+  assert.match(draftScan, /possibilities/)
   assert.match(editor, /buildDraftScanPrompt/)
   assert.match(editor, /schema:DRAFT_SCAN_SCHEMA/)
   assert.match(editor, /mergeIssueLedger/)
@@ -168,11 +169,13 @@ test('story chronology and character life state are persisted as owned records',
 })
 
 test('release configuration documents every AI model and enforces CI', async () => {
-  const [environment, workflow, readme, checklist] = await Promise.all([
+  const [environment, workflow, liveWorkflow, readme, checklist, gauntletDocs] = await Promise.all([
     read('.env.example'),
     read('.github/workflows/anchor-ci.yml'),
+    read('.github/workflows/anchor-live-gauntlet.yml'),
     read('README.md'),
     read('docs/production-release-checklist.md'),
+    read('docs/automated-gauntlet.md'),
   ])
   assert.match(environment, /^ANTHROPIC_MODEL=/m)
   assert.match(environment, /^ANTHROPIC_DRAFT_SCAN_MODEL=/m)
@@ -180,9 +183,14 @@ test('release configuration documents every AI model and enforces CI', async () 
   assert.match(workflow, /node-version: 24/)
   assert.match(workflow, /npm ci/)
   assert.match(workflow, /npm test/)
+  assert.match(workflow, /npm run gauntlet/)
   assert.match(workflow, /npm run build/)
+  assert.match(liveWorkflow, /workflow_dispatch/)
+  assert.match(liveWorkflow, /secrets\.ANTHROPIC_API_KEY/)
   assert.match(readme, /Editor 0\.4\.8, Inky Motion/)
-  assert.match(readme, /36 regression tests/)
+  assert.match(readme, /41 regression tests/)
+  assert.match(readme, /22 chronological revisions/)
+  assert.match(gauntletDocs, /Never put this value.*chat/i)
   assert.match(checklist, /ANTHROPIC_API_KEY/)
   assert.match(checklist, /does not require Vercel authentication/)
   assert.match(checklist, /two separate test users/)
