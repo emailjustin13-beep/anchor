@@ -166,3 +166,26 @@ test('story chronology and character life state are persisted as owned records',
   assert.match(firstRead, /character_state_events/)
   assert.match(ties, /sequence_index/)
 })
+
+test('release configuration documents every AI model and enforces CI', async () => {
+  const [environment, workflow, readme] = await Promise.all([
+    read('.env.example'),
+    read('.github/workflows/anchor-ci.yml'),
+    read('README.md'),
+  ])
+  assert.match(environment, /^ANTHROPIC_MODEL=/m)
+  assert.match(environment, /^ANTHROPIC_DRAFT_SCAN_MODEL=/m)
+  assert.match(environment, /^ANTHROPIC_FALLBACK_MODEL=/m)
+  assert.match(workflow, /node-version: 24/)
+  assert.match(workflow, /npm ci/)
+  assert.match(workflow, /npm test/)
+  assert.match(workflow, /npm run build/)
+  assert.match(readme, /Editor 0\.4\.8, Inky Motion/)
+  assert.match(readme, /31 regression tests/)
+})
+
+test('timeout copy follows configured deadlines without a stale duration', async () => {
+  const route = await read('app/api/ai/route.js')
+  assert.match(route, /exceeded its response deadline/)
+  assert.doesNotMatch(route, /longer than 45 seconds/)
+})

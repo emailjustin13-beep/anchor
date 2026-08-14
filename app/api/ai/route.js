@@ -286,7 +286,7 @@ export async function POST(request) {
     if (err?.code === 'AI_TIMEOUT') {
       return NextResponse.json(
         {
-          error: 'This scan took longer than 45 seconds and was stopped. Your screenplay is safe. Please try again.',
+          error: 'This scan exceeded its response deadline and was stopped. Your screenplay is safe. Please try again.',
           code: 'AI_TIMEOUT',
           retryable: true,
         },
