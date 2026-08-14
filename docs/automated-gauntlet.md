@@ -61,6 +61,8 @@ Every revision declares expected active, resolved, and dismissed issue keys plus
 
 The manual **Anchor Live Gauntlet** GitHub workflow runs the same cases against the configured Anthropic Draft Scan model. It retries one temporary provider failure, records every revision's latency and outcome, and uploads `live-report.json` even when a check fails.
 
+Report version 2 also preserves the model's structured output for each provider-backed revision. It never stores the API key or request headers. Raw ledger-protocol mistakes are warnings when deterministic reconciliation repairs the writer-visible result; incorrect visible findings, status, identity, evidence, suppression, or cache behavior remain failures.
+
 The live workflow is manual because it spends model tokens. It can run one case or the full suite for 1, 2, 3, or 5 complete passes.
 
 One server-only GitHub Actions secret is required:

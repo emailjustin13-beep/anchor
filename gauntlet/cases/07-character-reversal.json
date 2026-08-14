@@ -3,7 +3,7 @@
   "title": "Character consistency and an earned behavioral break",
   "characters": [
     { "id": "devin", "name": "Devin Shaw", "role": "Pacifist medic", "goals": "Get civilians out alive", "fears": "Becoming violent", "personality": "Compassionate and restrained", "voice": "Quiet", "life_state": "alive" },
-    { "id": "mara", "name": "Mara Shaw", "role": "Devin's sister", "goals": "Protect Devin", "fears": "Losing him", "personality": "Protective", "voice": "Blunt", "life_state": "alive" }
+    { "id": "mara", "name": "Mara Shaw", "role": "Devin's sister", "goals": "Protect Devin", "fears": "Losing him", "personality": "Protective", "voice": "Blunt", "life_state": "unknown" }
   ],
   "relationships": [],
   "issues": {
@@ -23,7 +23,7 @@
         "characters": ["Devin Shaw"],
         "evidence": [
           { "quote": "I will never point a gun at anyone. That is the line I do not cross.", "location": "INT. CHURCH CLINIC - NIGHT" },
-          { "quote": "Devin draws a pistol and shoots the unarmed guard as he reaches for the alarm.", "location": "INT. BORDER FACILITY - NIGHT" }
+          { "quote": "Devin draws the pistol and shoots the unarmed guard as he reaches for the alarm.", "location": "INT. BORDER FACILITY - NIGHT" }
         ]
       },
       "match": { "categories": ["character"], "integrity_bases": ["unearned_character_reversal"], "characters": ["Devin Shaw"], "evidence_all": ["never point a gun", "shoots the unarmed guard"] }
@@ -32,19 +32,19 @@
   "revisions": [
     {
       "id": "unearned-violent-reversal",
-      "script": "[scene]INT. CHURCH CLINIC - NIGHT\n[character]DEVIN\n[dialogue]I will never point a gun at anyone. That is the line I do not cross.\n[action]Mara nods and locks the pistol away.\n[scene]INT. BORDER FACILITY - NIGHT\n[action]Devin draws a pistol and shoots the unarmed guard as he reaches for the alarm.",
+      "script": "[scene]INT. CHURCH CLINIC - NIGHT\n[character]DEVIN\n[dialogue]I will never point a gun at anyone. That is the line I do not cross.\n[action]Mara nods. Devin keeps the pistol holstered.\n[scene]INT. BORDER FACILITY - NIGHT\n[action]Devin draws the pistol and shoots the unarmed guard as he reaches for the alarm.",
       "expect": { "active": ["devin_violence"], "resolved": [], "dismissed": [], "forbidden": ["rewrite devin"], "scan_mode": "initial" },
       "mock": { "new": ["devin_violence"] }
     },
     {
       "id": "explicit-break-earns-reversal",
-      "script": "[scene]INT. CHURCH CLINIC - NIGHT\n[character]DEVIN\n[dialogue]I will never point a gun at anyone. That is the line I do not cross.\n[action]Mara nods and locks the pistol away.\n[scene]INT. BORDER FACILITY - NIGHT\n[action]The guard executes Mara after Devin surrenders. Devin takes Mara's pistol.\n[character]DEVIN\n[dialogue]That line died with Mara.\n[action]Devin draws a pistol and shoots the unarmed guard as he reaches for the alarm.",
+      "script": "[scene]INT. CHURCH CLINIC - NIGHT\n[character]DEVIN\n[dialogue]I will never point a gun at anyone. That is the line I do not cross.\n[action]Mara nods. Devin keeps the pistol holstered.\n[scene]INT. BORDER FACILITY - NIGHT\n[action]The guard executes Mara after Devin surrenders.\n[character]DEVIN\n[dialogue]That line died with Mara.\n[action]Devin draws the pistol and shoots the unarmed guard as he reaches for the alarm.",
       "expect": { "active": [], "resolved": ["devin_violence"], "dismissed": [], "forbidden": ["sudden unexplained reversal"], "scan_mode": "incremental" },
       "mock": { "decisions": { "devin_violence": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "That line died with Mara.", "location": "INT. BORDER FACILITY - NIGHT" }], "decision_explanation": "The draft explicitly marks the event and Devin's decision that break his former boundary." } } }
     },
     {
       "id": "bridge-removed-reopens",
-      "script": "[scene]INT. CHURCH CLINIC - NIGHT\n[character]DEVIN\n[dialogue]I will never point a gun at anyone. That is the line I do not cross.\n[action]Mara nods and locks the pistol away.\n[scene]INT. BORDER FACILITY - NIGHT\n[action]Devin draws a pistol and shoots the unarmed guard as he reaches for the alarm.",
+      "script": "[scene]INT. CHURCH CLINIC - NIGHT\n[character]DEVIN\n[dialogue]I will never point a gun at anyone. That is the line I do not cross.\n[action]Mara nods. Devin keeps the pistol holstered.\n[scene]INT. BORDER FACILITY - NIGHT\n[action]Devin draws the pistol and shoots the unarmed guard as he reaches for the alarm.",
       "expect": { "active": ["devin_violence"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
       "mock": { "decisions": { "devin_violence": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The explicit behavioral bridge was removed." } } }
     }

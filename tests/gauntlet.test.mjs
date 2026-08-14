@@ -37,6 +37,9 @@ test('the deterministic Gauntlet grades two full passes with stable issue identi
   assert.equal(report.summary.failedChecks, 0)
   assert.equal(report.summary.providerCalls, 42)
   assert.equal(report.summary.cacheHits, 2)
+  assert.equal(report.version, 2)
+  assert.ok(report.runs.filter(run => run.providerCalled).every(run => run.modelOutput))
+  assert.ok(report.runs.filter(run => run.cacheHit).every(run => run.modelOutput === null))
 
   const initial = report.runs.find(run => run.repetition === 1 && run.case === 'case-02-information-leak' && run.revision === 'initial-gaps')
   const reopened = report.runs.find(run => run.repetition === 1 && run.case === 'case-02-information-leak' && run.revision === 'recorder-removed-reopens-kira')
@@ -55,10 +58,14 @@ test('the editor and Gauntlet share one closed Draft Scan schema and prompt cont
     scriptText:'INT. ROOM - NIGHT\nA locked door stands open.',
     characters:[],
     relationships:[],
+    previousIssues:[{ id:'issue:test', status:'open', category:'continuity', title:'Test issue', summary:'Test', question:'Intentional?', evidence:[] }],
   })
   assert.match(prompt.systemPrompt, /reasonable-audience inference gate/)
   assert.match(prompt.systemPrompt, /Never rewrite/)
+  assert.match(prompt.systemPrompt, /A recording can be played from a different location/)
   assert.match(prompt.prompt, /INITIAL — establish the issue ledger/)
+  assert.match(prompt.prompt, /REQUIRED LEDGER DECISIONS: 1/)
+  assert.match(prompt.prompt, /REQUIRED ISSUE IDS: issue:test/)
 })
 
 test('the live Gauntlet retries a temporary provider failure once without losing the scan', async () => {

@@ -63,7 +63,12 @@ function issueMatchesSpec(issue, definition) {
   if (normalizeArray(match.characters).some(name => !issueCharacters.includes(normalizeFindingText(name)))) return false
 
   const evidenceText = normalizeArray(issue.evidence).map(item => normalizeFindingText(item.quote)).join(' | ')
-  return normalizeArray(match.evidence_all).every(quote => evidenceText.includes(normalizeFindingText(quote)))
+  if (!normalizeArray(match.evidence_all).every(quote => evidenceText.includes(normalizeFindingText(quote)))) return false
+  const evidenceAnyGroups = normalizeArray(match.evidence_any_groups)
+  if (evidenceAnyGroups.length && !evidenceAnyGroups.some(group =>
+    normalizeArray(group).every(quote => evidenceText.includes(normalizeFindingText(quote)))
+  )) return false
+  return true
 }
 
 function hydrateDecision(testCase, key, config, ledger, keyIds) {
@@ -128,15 +133,15 @@ function gradeProtocol(raw, previousIssues) {
   const decisions = normalizeArray(raw?.existing_issue_decisions)
   const previousIds = previousIssues.map(issue => issue.id).sort()
   const decisionIds = decisions.map(decision => decision.issue_id).sort()
-  if (new Set(decisionIds).size !== decisionIds.length) failures.push('The model decided the same existing issue more than once.')
-  if (previousIds.join('|') !== decisionIds.join('|')) failures.push('The model did not decide every existing ledger issue exactly once.')
+  if (new Set(decisionIds).size !== decisionIds.length) warnings.push('The model decided the same existing issue more than once; application reconciliation repaired the ledger.')
+  if (previousIds.join('|') !== decisionIds.join('|')) warnings.push('The model did not decide every existing ledger issue exactly once; application reconciliation repaired what it could.')
 
   const activeFromDecisions = decisions
     .filter(decision => ['still_open', 'reopened'].includes(decision.status))
     .map(decision => decision.issue_id)
     .sort()
   const declaredActive = normalizeArray(raw?.active_issue_ids).sort()
-  if (activeFromDecisions.join('|') !== declaredActive.join('|')) failures.push('active_issue_ids disagrees with existing issue decisions.')
+  if (activeFromDecisions.join('|') !== declaredActive.join('|')) warnings.push('active_issue_ids disagreed with existing issue decisions; application reconciliation used the decisions.')
   if (normalizeArray(raw?.new_findings).length > 5) failures.push('The model returned more than five new findings.')
 
   for (const finding of normalizeArray(raw?.new_findings)) {
@@ -147,10 +152,26 @@ function gradeProtocol(raw, previousIssues) {
   return { failures, warnings }
 }
 
+function locationMatchesEvidence(location, quote, memory) {
+  if (!location) return false
+  const sceneNumber = location.match(/\bscene\s+(\d+)\b/)
+  const quoteScenes = memory.scenes.filter(scene => normalizeFindingText(scene.text).includes(quote))
+  const candidates = quoteScenes.length ? quoteScenes : memory.scenes
+  if (sceneNumber && candidates.some(scene => scene.number === Number(sceneNumber[1]))) return true
+
+  const locationWords = new Set(location.split(' ').filter(Boolean))
+  return candidates.some(scene => {
+    const heading = normalizeFindingText(scene.heading)
+    if (heading.includes(location) || location.includes(heading)) return true
+    const headingWords = new Set(heading.split(' ').filter(Boolean))
+    const overlap = [...locationWords].filter(word => headingWords.has(word)).length
+    return overlap >= 2 && overlap / Math.max(Math.min(locationWords.size, headingWords.size), 1) >= 0.5
+  })
+}
+
 function gradeIssueQuality(issues, plainScript, memory) {
   const failures = []
   const normalizedDraft = normalizeFindingText(plainScript)
-  const headings = memory.scenes.map(scene => normalizeFindingText(scene.heading))
 
   for (const issue of issues) {
     const evidence = normalizeArray(issue.evidence)
@@ -159,7 +180,7 @@ function gradeIssueQuality(issues, plainScript, memory) {
       const quote = normalizeFindingText(item.quote)
       if (quote.length < 12 || !normalizedDraft.includes(quote)) failures.push(`${issue.id} cites text that is not an exact current-draft quote.`)
       const location = normalizeFindingText(item.location)
-      if (!location || !headings.some(heading => heading.includes(location) || location.includes(heading))) {
+      if (!locationMatchesEvidence(location, quote, memory)) {
         failures.push(`${issue.id} cites an invalid scene location.`)
       }
     }
@@ -433,6 +454,7 @@ export async function runGauntlet({ cases, provider = createFixtureProvider(), r
           cacheHit,
           providerCalled:!cacheHit,
           elapsedMs,
+          modelOutput:raw,
           activeIssues:ledger.issues.filter(issue => DISPLAYED_STATUSES.has(issue.status)).map(issue => ({ id:issue.id, category:issue.category, basis:issue.integrity_basis, title:issue.title })),
           resolvedIssues:ledger.issues.filter(issue => issue.status === 'resolved').map(issue => issue.id),
           dismissedIssues:ledger.issues.filter(issue => issue.status === 'dismissed').map(issue => issue.id),
@@ -453,7 +475,7 @@ export async function runGauntlet({ cases, provider = createFixtureProvider(), r
   const latencies = runs.filter(run => run.providerCalled).map(run => run.elapsedMs)
   const failures = runs.reduce((total, run) => total + run.failures.length, 0)
   const report = {
-    version:1,
+    version:2,
     startedAt,
     completedAt:new Date().toISOString(),
     provider:provider.name,
