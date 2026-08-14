@@ -4,27 +4,23 @@ import { supabase } from '../lib/supabase'
 import BibleDashboard    from './bible/BibleDashboard'
 import CharactersModule  from './bible/CharactersModule'
 import TiesThatBind      from './bible/TiesThatBind'
-import LocationsModule   from './bible/LocationsModule'
 import WritingEditor     from './editor/WritingEditor'
-import Settings          from './shared/Settings'
 import Onboarding        from './shared/Onboarding'
 
 const NAV = [
   { id: 'bible',      icon: '◈', label: 'Story Bible'    },
-  { id: 'characters', icon: '◉', label: 'Characters'      },
   { id: 'ties',       icon: '⬡', label: 'Ties That Bind' },
-  { id: 'locations',  icon: '◎', label: 'Locations'       },
   { id: 'write',      icon: '▤', label: 'Write'           },
 ]
 
-export default function Shell({ project, onExit }) {
+export default function Shell({ project, onExit, onSignOut }) {
   const [module, setModule]           = useState('bible')
   const [characters, setCharacters]   = useState([])
   const [relationships, setRels]      = useState([])
-  const [locations, setLocations]     = useState([])
+  const [relationshipEvents, setRelationshipEvents] = useState([])
+  const [characterStateEvents, setCharacterStateEvents] = useState([])
   const [script, setScript]           = useState(null)
   const [loading, setLoading]         = useState(true)
-  const [showSettings, setSettings]   = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [pulseCache, setPulseCache]   = useState(null)  // cached Story Pulse result
   const [pulseScriptId, setPulseScriptId] = useState(null) // script id when pulse was last run
@@ -33,15 +29,17 @@ export default function Shell({ project, onExit }) {
 
   async function loadAll() {
     setLoading(true)
-    const [chars, rels, locs, scr] = await Promise.all([
+    const [chars, rels, relEvents, stateEvents, scr] = await Promise.all([
       supabase.from('characters').select('*').eq('project_id', project.id).order('created_at'),
       supabase.from('relationships').select('*').eq('project_id', project.id),
-      supabase.from('locations').select('*').eq('project_id', project.id).order('created_at'),
+      supabase.from('relationship_events').select('*').eq('project_id', project.id).order('sequence_index'),
+      supabase.from('character_state_events').select('*').eq('project_id', project.id).order('sequence_index'),
       supabase.from('scripts').select('*').eq('project_id', project.id).order('created_at').limit(1).maybeSingle(),
     ])
     setCharacters(chars.data || [])
     setRels(rels.data || [])
-    setLocations(locs.data || [])
+    setRelationshipEvents(relEvents.data || [])
+    setCharacterStateEvents(stateEvents.data || [])
     setScript(scr.data || null)
     setLoading(false)
     if (project.onboarded === false) setShowOnboarding(true)
@@ -93,23 +91,21 @@ export default function Shell({ project, onExit }) {
     setRels(p => p.filter(r => r.id !== id))
   }
 
-  // ── Location actions ───────────────────────────────────────
-  async function createLocation() {
-    const { data } = await supabase.from('locations')
-      .insert({ project_id: project.id, name: 'New Location' })
-      .select().single()
-    if (data) setLocations(p => [...p, data])
+  async function createRelationshipEvent(relationshipId, event) {
+    const { data, error } = await supabase.from('relationship_events').insert({
+      project_id: project.id,
+      relationship_id: relationshipId,
+      ...event,
+    }).select().single()
+    if (error) throw error
+    if (data) setRelationshipEvents(items => [...items, data].sort((a, b) => a.sequence_index - b.sequence_index))
     return data
   }
 
-  async function updateLocation(id, patch) {
-    const { data } = await supabase.from('locations').update(patch).eq('id', id).select().single()
-    if (data) setLocations(p => p.map(l => l.id === id ? data : l))
-  }
-
-  async function deleteLocation(id) {
-    await supabase.from('locations').delete().eq('id', id)
-    setLocations(p => p.filter(l => l.id !== id))
+  async function deleteRelationshipEvent(id) {
+    const { error } = await supabase.from('relationship_events').delete().eq('id', id)
+    if (error) throw error
+    setRelationshipEvents(items => items.filter(event => event.id !== id))
   }
 
   // ── Script actions ─────────────────────────────────────────
@@ -130,10 +126,9 @@ export default function Shell({ project, onExit }) {
     await supabase.from('projects').update({ onboarded: true }).eq('id', project.id)
   }
 
-  const shared  = { project, characters, relationships, locations, script }
+  const shared  = { project, characters, relationships, relationshipEvents, characterStateEvents, script }
   const charOps = { onCreateCharacter: createCharacter, onUpdateCharacter: updateCharacter, onDeleteCharacter: deleteCharacter }
   const relOps  = { onCreateRelationship: createRelationship, onUpdateRelationship: updateRelationship, onDeleteRelationship: deleteRelationship }
-  const locOps  = { onCreateLocation: createLocation, onUpdateLocation: updateLocation, onDeleteLocation: deleteLocation }
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -160,9 +155,10 @@ export default function Shell({ project, onExit }) {
           </button>
         ))}
 
-        <div style={{ marginTop: 'auto' }}>
-          <button onClick={() => setSettings(true)} title="Settings" style={{ width: 36, height: 36, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--dim)', cursor: 'pointer' }}>⚙</button>
-        </div>
+        <button onClick={onSignOut} title="Sign out" style={{ marginTop:'auto', width:36, height:36, borderRadius:7, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, cursor:'pointer', background:'transparent', color:'var(--dim)', border:'1px solid transparent' }}>
+          ↪
+        </button>
+
       </nav>
 
       {/* Main */}
@@ -171,16 +167,14 @@ export default function Shell({ project, onExit }) {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13, fontWeight: 300 }}>Loading story bible…</div>
         ) : (
           <>
-            {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} {...locOps} onNavigate={setModule} pulseCache={pulseCache} setPulseCache={setPulseCache} pulseScriptId={pulseScriptId} setPulseScriptId={setPulseScriptId} />}
+            {module === 'bible'      && <BibleDashboard   {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onNavigate={setModule} pulseCache={pulseCache} setPulseCache={setPulseCache} pulseScriptId={pulseScriptId} setPulseScriptId={setPulseScriptId} />}
             {module === 'characters' && <CharactersModule  {...shared} {...charOps} />}
-            {module === 'ties'       && <TiesThatBind      {...shared} {...charOps} {...relOps} />}
-            {module === 'locations'  && <LocationsModule   {...shared} {...locOps} />}
-            {module === 'write'      && <WritingEditor     {...shared} onSaveScript={saveScript} onUpdateRelationship={updateRelationship} />}
+            {module === 'ties'       && <TiesThatBind      {...shared} {...charOps} {...relOps} onCreateRelationshipEvent={createRelationshipEvent} onDeleteRelationshipEvent={deleteRelationshipEvent} />}
+            {module === 'write'      && <WritingEditor     {...shared} onSaveScript={saveScript} onCreateRelationship={createRelationship} onUpdateRelationship={updateRelationship} onCreateRelationshipEvent={createRelationshipEvent} onReload={loadAll} />}
           </>
         )}
       </main>
 
-      {showSettings && <Settings onClose={() => setSettings(false)} onReplayOnboarding={() => { setShowOnboarding(true) }} />}
       {showOnboarding && <Onboarding onComplete={completeOnboarding} />}
     </div>
   )

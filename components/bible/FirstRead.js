@@ -1,51 +1,17 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { callAI } from '../../lib/ai'
+import { callAI, buildFirstReadPrompt, FIRST_READ_SCHEMA } from '../../lib/ai'
 
 const REL_TYPES = ['ally','rival','romantic','family','mentor','enemy','complicated','stranger']
 const REL_COLORS = { ally:'#3FB950',rival:'#F85149',romantic:'#DB61A2',family:'#58A6FF',mentor:'#D2A8FF',enemy:'#FF7B72',complicated:'#FFA657',stranger:'#6A6A88' }
 const CHAR_COLORS = ['#C8A96A','#58A6FF','#3FB950','#DB61A2','#FF7B72','#D2A8FF','#FFA657','#38BDAE']
 
-function buildFirstReadPrompt(scriptText, format) {
-  return {
-    systemPrompt: `You are Anchor — a story bible reader. You read scripts and extract what is already there. You never invent. You never suggest what should happen. You only surface what the writer has already written. Respond only in valid JSON, no markdown, no preamble.`,
-    prompt: `Read this ${format || 'screenplay'} and extract every named character and their relationships.
-
-SCRIPT:
-${scriptText.slice(0, 8000)}
-
-Return a JSON object with exactly this shape:
-{
-  "characters": [
-    {
-      "name": "Character name as written",
-      "role": "One short phrase describing their role in the story",
-      "goals": "What they appear to want, based only on what's in the script",
-      "fears": "What they appear to fear or avoid, based only on what's in the script",
-      "voice": "How they speak — cadence, vocabulary, patterns observed in the script",
-      "personality": "2-3 adjectives that describe them based on their actions and dialogue"
-    }
-  ],
-  "relationships": [
-    {
-      "character_a": "Name of first character",
-      "character_b": "Name of second character",
-      "type": "one of: ally, rival, romantic, family, mentor, enemy, complicated, stranger",
-      "tension": 0,
-      "status": "One sentence describing where this relationship stands right now in the script",
-      "history": "One sentence about how they know each other, if inferable"
-    }
-  ]
-}
-
-Only include named characters who speak or are spoken about significantly. Only include relationships that are clearly established in the script. Tension is 0-100 based on conflict observed. Return only valid JSON.`
-  }
-}
-
 export default function FirstRead({ scriptText, format, projectId, onComplete, onCancel }) {
-  const [step, setStep]               = useState('reading') // reading | characters | relationships | saving
+  const [step, setStep]               = useState('reading') // reading | characters | relationships | events | saving
   const [characters, setCharacters]   = useState([])
   const [relationships, setRelationships] = useState([])
+  const [relationshipEvents, setRelationshipEvents] = useState([])
+  const [characterStates, setCharacterStates] = useState([])
   const [error, setError]             = useState('')
   const [saving, setSaving]           = useState(false)
 
@@ -56,10 +22,9 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
     setStep('reading')
     setError('')
     try {
+      if (!scriptText?.trim()) throw new Error('No script text was provided.')
       const prompt = buildFirstReadPrompt(scriptText, format)
-      const raw = await callAI(prompt)
-      const clean = raw.replace(/```json|```/g, '').trim()
-      const result = JSON.parse(clean)
+      const result = await callAI({ ...prompt, schema: FIRST_READ_SCHEMA, maxTokens: 8000 })
       // Assign colors and temp IDs
       const chars = (result.characters || []).map((c, i) => ({
         ...c,
@@ -73,8 +38,20 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
         tension: r.tension ?? 30,
         _keep: true,
       }))
+      const relEvents = (result.relationship_events || []).map((event, i) => ({
+        ...event,
+        _tempId: `rel_event_${i}`,
+        _keep: true,
+      }))
+      const stateEvents = (result.character_state_events || []).map((event, i) => ({
+        ...event,
+        _tempId: `state_event_${i}`,
+        _keep: true,
+      }))
       setCharacters(chars)
       setRelationships(rels)
+      setRelationshipEvents(relEvents)
+      setCharacterStates(stateEvents)
       setStep('characters')
     } catch(e) {
       setError('Error: ' + e.message)
@@ -89,6 +66,11 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
     setRelationships(rs => rs.map(r => r._tempId === tempId ? { ...r, ...patch } : r))
   }
 
+  function toggleTimelineEvent(tempId) {
+    setRelationshipEvents(events => events.map(event => event._tempId === tempId ? { ...event, _keep: !event._keep } : event))
+    setCharacterStates(events => events.map(event => event._tempId === tempId ? { ...event, _keep: !event._keep } : event))
+  }
+
   async function save() {
     setSaving(true)
     setStep('saving')
@@ -96,11 +78,14 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
       const { supabase } = await import('../../lib/supabase')
       const keptChars = characters.filter(c => c._keep)
       const keptRels  = relationships.filter(r => r._keep)
+      const keptRelEvents = relationshipEvents.filter(event => event._keep)
+      const keptStateEvents = characterStates.filter(event => event._keep)
+      const byName = (items, name) => items.find(item => item.name.trim().toLowerCase() === name?.trim().toLowerCase())
 
       // Insert characters
       const insertedChars = []
       for (const c of keptChars) {
-        const { data } = await supabase.from('characters').insert({
+        const { data, error: charError } = await supabase.from('characters').insert({
           project_id:  projectId,
           name:        c.name,
           role:        c.role || '',
@@ -108,17 +93,20 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
           fears:       c.fears || '',
           voice:       c.voice || '',
           personality: c.personality || '',
+          life_state:  c.life_state || 'alive',
           color:       c.color,
         }).select().single()
+        if (charError) throw charError
         if (data) insertedChars.push({ tempId: c._tempId, name: c.name, id: data.id })
       }
 
       // Insert relationships
+      const insertedRels = []
       for (const r of keptRels) {
-        const a = insertedChars.find(c => c.name === r.character_a)
-        const b = insertedChars.find(c => c.name === r.character_b)
+        const a = byName(insertedChars, r.character_a)
+        const b = byName(insertedChars, r.character_b)
         if (!a || !b) continue
-        await supabase.from('relationships').insert({
+        const { data, error: relError } = await supabase.from('relationships').insert({
           project_id:  projectId,
           character_a: a.id,
           character_b: b.id,
@@ -126,13 +114,55 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
           tension:     r.tension ?? 30,
           status:      r.status || '',
           history:     r.history || '',
-        })
+        }).select().single()
+        if (relError) throw relError
+        if (data) insertedRels.push({ ...data, characterAName: a.name, characterBName: b.name })
       }
 
-      onComplete(insertedChars.length, keptRels.length)
+      // Insert only writer-confirmed chronology. These rows are the source of truth
+      // for Ties That Bind; the relationship row remains the latest snapshot.
+      for (const event of keptRelEvents) {
+        const rel = insertedRels.find(item => {
+          const names = [item.characterAName.toLowerCase(), item.characterBName.toLowerCase()]
+          return names.includes(event.character_a?.toLowerCase()) && names.includes(event.character_b?.toLowerCase())
+        })
+        if (!rel) continue
+        const { error: eventError } = await supabase.from('relationship_events').insert({
+          project_id: projectId,
+          relationship_id: rel.id,
+          sequence_index: Math.round(event.sequence_index || 0),
+          segment_type: event.segment_type || 'section',
+          segment_label: event.segment_label || 'Unlabeled section',
+          relationship_type: event.type || 'stranger',
+          tension: Math.max(0, Math.min(100, Math.round(event.tension || 0))),
+          summary: event.summary || '',
+          evidence: event.evidence || '',
+          source: 'first_read',
+        })
+        if (eventError) throw eventError
+      }
+
+      for (const event of keptStateEvents) {
+        const character = byName(insertedChars, event.character)
+        if (!character) continue
+        const { error: stateError } = await supabase.from('character_state_events').insert({
+          project_id: projectId,
+          character_id: character.id,
+          sequence_index: Math.round(event.sequence_index || 0),
+          segment_type: event.segment_type || 'section',
+          segment_label: event.segment_label || 'Unlabeled section',
+          state: event.state || 'unknown',
+          summary: event.summary || '',
+          evidence: event.evidence || '',
+          source: 'first_read',
+        })
+        if (stateError) throw stateError
+      }
+
+      onComplete(insertedChars.length, insertedRels.length)
     } catch(e) {
-      setError('Something went wrong saving. Check your connection and try again.')
-      setStep('relationships')
+      setError('Something went wrong saving: ' + e.message)
+      setStep('events')
     }
     setSaving(false)
   }
@@ -146,7 +176,7 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
           <Dot delay={0}/><Dot delay={0.2}/><Dot delay={0.4}/>
         </div>
         <div style={{ fontSize:13, color:'var(--muted)', fontWeight:300 }}>Anchor is reading your script…</div>
-        <div style={{ fontSize:11, color:'var(--dim)', marginTop:6, fontWeight:300 }}>Detecting characters and relationships</div>
+        <div style={{ fontSize:11, color:'var(--dim)', marginTop:6, fontWeight:300 }}>Detecting characters, relationships, and story chronology</div>
       </div>
       {error && (
         <div style={{ padding:'14px 20px', background:'rgba(248,81,73,.08)', border:'1px solid rgba(248,81,73,.2)', borderRadius:8, margin:'0 24px 24px', fontSize:13, color:'var(--danger)', fontWeight:300 }}>
@@ -197,8 +227,8 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
   )
 
   // ── Step 2: Relationships ───────────────────────────────────
-  const keptNames = new Set(characters.filter(c => c._keep).map(c => c.name))
-  const validRels = relationships.filter(r => keptNames.has(r.character_a) && keptNames.has(r.character_b))
+  const keptNames = new Set(characters.filter(c => c._keep).map(c => c.name.trim().toLowerCase()))
+  const validRels = relationships.filter(r => keptNames.has(r.character_a?.trim().toLowerCase()) && keptNames.has(r.character_b?.trim().toLowerCase()))
 
   if (step === 'relationships') return (
     <Overlay>
@@ -221,6 +251,34 @@ export default function FirstRead({ scriptText, format, projectId, onComplete, o
       </div>
       <Footer
         onBack={() => setStep('characters')} backLabel="← Characters"
+        onNext={() => setStep('events')} nextLabel="Review timeline →"
+      />
+    </Overlay>
+  )
+
+  const timeline = [
+    ...relationshipEvents.map(event => ({ ...event, _kind: 'relationship' })),
+    ...characterStates.map(event => ({ ...event, _kind: 'character' })),
+  ].sort((a, b) => a.sequence_index - b.sequence_index)
+
+  if (step === 'events') return (
+    <Overlay>
+      <Header
+        step={3}
+        title="Story timeline proposed"
+        sub="Nothing below becomes canon until you confirm it. Dismiss anything Anchor misunderstood."
+      />
+      <div style={{ flex:1, overflow:'auto', padding:'0 24px 16px' }}>
+        {timeline.length === 0 && (
+          <div style={{ fontSize:13, color:'var(--dim)', fontStyle:'italic', fontWeight:300, padding:'20px 0' }}>No meaningful relationship or character-state changes were detected.</div>
+        )}
+        {timeline.map(event => (
+          <TimelineEventCard key={event._tempId} event={event} onToggle={() => toggleTimelineEvent(event._tempId)} />
+        ))}
+      </div>
+      {error && <div style={{ padding:'0 24px 10px', color:'var(--danger)', fontSize:12 }}>{error}</div>}
+      <Footer
+        onBack={() => setStep('relationships')} backLabel="← Relationships"
         onNext={save} nextLabel="Confirm & build bible"
         saving={saving}
       />
@@ -271,6 +329,16 @@ function CharCard({ char, onChange, onToggle }) {
               />
             </div>
           ))}
+          <div className="field" style={{ marginBottom:0 }}>
+            <label style={{ fontSize:9 }}>LIFE STATE</label>
+            <select value={char.life_state || 'alive'} onChange={e => onChange({ life_state: e.target.value })} style={{ fontSize:12 }}>
+              <option value="alive">Alive</option>
+              <option value="missing">Missing</option>
+              <option value="presumed_dead">Presumed dead</option>
+              <option value="deceased">Deceased</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
         </div>
       )}
     </div>
@@ -339,6 +407,33 @@ function RelCard({ rel, characters, onChange, onToggle }) {
   )
 }
 
+function TimelineEventCard({ event, onToggle }) {
+  const isRelationship = event._kind === 'relationship'
+  const color = isRelationship ? (REL_COLORS[event.type] || 'var(--gold)') : event.state === 'deceased' ? 'var(--danger)' : 'var(--gold)'
+  const title = isRelationship
+    ? `${event.character_a} & ${event.character_b}`
+    : `${event.character} — ${String(event.state || 'unknown').replace('_', ' ')}`
+
+  return (
+    <div style={{ background:'var(--s2)', border:`1px solid ${event._keep ? 'var(--edge)' : 'rgba(255,255,255,.04)'}`, borderRadius:10, marginBottom:10, padding:'13px 14px', opacity:event._keep ? 1 : .4 }}>
+      <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+        <div style={{ width:8, height:8, borderRadius:'50%', background:color, marginTop:5, flexShrink:0 }} />
+        <div style={{ flex:1 }}>
+          <div style={{ display:'flex', gap:7, alignItems:'center', flexWrap:'wrap', marginBottom:4 }}>
+            <span style={{ fontSize:12, color:'var(--text)', fontWeight:500 }}>{title}</span>
+            <span style={{ fontSize:10, color:'var(--gold)', background:'var(--gold-bg)', padding:'1px 7px', borderRadius:3 }}>{event.segment_label || 'Unlabeled section'}</span>
+          </div>
+          <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.55, marginBottom:5 }}>{event.summary}</div>
+          {event.evidence && <div style={{ fontSize:11, color:'var(--dim)', fontStyle:'italic', lineHeight:1.5 }}>“{event.evidence}”</div>}
+        </div>
+        <button onClick={onToggle} style={{ fontSize:11, padding:'3px 9px', borderRadius:4, border:'1px solid var(--edge)', background:'transparent', color:'var(--dim)', cursor:'pointer', fontFamily:'var(--font-ui)' }}>
+          {event._keep ? 'Dismiss' : 'Restore'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Shared UI ───────────────────────────────────────────────────
 function Overlay({ children }) {
   return (
@@ -356,7 +451,7 @@ function Header({ step, title, sub }) {
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
         <div style={{ fontFamily:'var(--font-display)', fontSize:11, color:'var(--gold)', fontWeight:300, letterSpacing:2, textTransform:'uppercase' }}>First Read</div>
         <div style={{ display:'flex', gap:4 }}>
-          {[1,2].map(n => (
+          {[1,2,3].map(n => (
             <div key={n} style={{ width:18, height:3, borderRadius:2, background: n <= step ? 'var(--gold)' : 'var(--edge)' }} />
           ))}
         </div>
