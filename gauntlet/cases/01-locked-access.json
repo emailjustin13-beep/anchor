@@ -12,18 +12,18 @@
         "category": "continuity",
         "priority": "high",
         "title": "The locker opens without its only key",
-        "summary": "The draft establishes one key, keeps it on Maya, and then shows the undamaged locker open.",
+        "summary": "The draft seals the only key inside an unopened evidence pouch and then shows the undamaged locker open.",
         "question": "Is the locker opening without the only key intentional?",
         "integrity_basis": "incompatible_facts",
-        "conflicting_fact_a": "Nora says there is only one key and Maya keeps it.",
-        "conflicting_fact_b": "The locker is open while the key remains attached to Maya and there is no damage.",
+        "conflicting_fact_a": "Nora seals the only key inside a transparent evidence pouch after Maya locks the locker.",
+        "conflicting_fact_b": "The locker is open while the pouch remains sealed with the key visible inside and there is no damage.",
         "plausible_inference": false,
         "inference_explanation": "The draft supplies no visible alternate access path.",
         "possibilities": [],
         "characters": ["Maya Chen", "Nora Bell"],
         "evidence": [
           { "quote": "This is the only key.", "location": "INT. CITY ARCHIVE - NIGHT" },
-          { "quote": "Locker 214 stands open. The brass key is still attached to Maya's belt. There is no visible damage.", "location": "INT. CITY ARCHIVE - LATER" }
+          { "quote": "Locker 214 stands open. The transparent evidence pouch remains sealed to Maya's belt, with the brass key visible inside. There is no visible damage.", "location": "INT. CITY ARCHIVE - LATER" }
         ]
       },
       "match": {
@@ -37,19 +37,19 @@
   "revisions": [
     {
       "id": "initial-conflict",
-      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Nora gives Maya a brass key.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The brass key is still attached to Maya's belt. There is no visible damage.",
+      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Maya locks Locker 214 with a brass key and pulls the handle. It holds fast. Nora slides the key into a transparent tamper-evident pouch, seals the pouch, and clips it to Maya's belt.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The transparent evidence pouch remains sealed to Maya's belt, with the brass key visible inside. There is no visible damage.",
       "expect": { "active": ["locker_access"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "initial" },
       "mock": { "new": ["locker_access"] }
     },
     {
       "id": "writer-dismisses-unchanged",
-      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Nora gives Maya a brass key.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The brass key is still attached to Maya's belt. There is no visible damage.",
+      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Maya locks Locker 214 with a brass key and pulls the handle. It holds fast. Nora slides the key into a transparent tamper-evident pouch, seals the pouch, and clips it to Maya's belt.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The transparent evidence pouch remains sealed to Maya's belt, with the brass key visible inside. There is no visible damage.",
       "writer_actions": { "dismiss": ["locker_access"] },
       "expect": { "active": [], "resolved": [], "dismissed": ["locker_access"], "forbidden": [], "cache": true, "scan_mode": "saved" }
     },
     {
       "id": "scratched-keyhole-bridge",
-      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Nora gives Maya a brass key.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The brass key is still attached to Maya's belt. Scratches run along the keyhole and fresh metal curls lie beneath the lock.",
+      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Maya locks Locker 214 with a brass key and pulls the handle. It holds fast. Nora slides the key into a transparent tamper-evident pouch, seals the pouch, and clips it to Maya's belt.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The transparent evidence pouch remains sealed to Maya's belt, with the brass key visible inside. Scratches run along the keyhole and fresh metal curls lie beneath the lock.",
       "expect": { "active": [], "resolved": ["locker_access"], "dismissed": [], "forbidden": ["another key"], "scan_mode": "incremental" },
       "mock": {
         "decisions": {
@@ -64,7 +64,7 @@
     },
     {
       "id": "bridge-removed-reopens",
-      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Nora gives Maya a brass key.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The brass key is still attached to Maya's belt. There is no visible damage.",
+      "script": "[scene]INT. CITY ARCHIVE - NIGHT\n[action]Maya locks Locker 214 with a brass key and pulls the handle. It holds fast. Nora slides the key into a transparent tamper-evident pouch, seals the pouch, and clips it to Maya's belt.\n[character]NORA\n[dialogue]This is the only key.\n[scene]INT. CITY ARCHIVE - LATER\n[action]Locker 214 stands open. The transparent evidence pouch remains sealed to Maya's belt, with the brass key visible inside. There is no visible damage.",
       "expect": { "active": ["locker_access"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
       "mock": { "decisions": { "locker_access": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The physical access bridge was removed." } } }
     }
