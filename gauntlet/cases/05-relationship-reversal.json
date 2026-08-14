@@ -49,7 +49,7 @@
       "id": "relationship-bridge-removed",
       "script": "[scene]INT. ANA'S APARTMENT - NIGHT\n[character]MARISOL\n[dialogue]No matter what happens, I will never give Vale evidence against you.\n[action]Ana takes Marisol's hand.\n[scene]INT. DIRECTOR VALE'S OFFICE - MORNING\n[action]Marisol hands Vale Ana's evidence drive.\n[character]MARISOL\n[dialogue]Everything you need is on there.",
       "expect": { "active": ["marisol_betrayal"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
-      "mock": { "decisions": { "marisol_betrayal": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The relationship break was removed." } } }
+      "mock": { "decisions": { "marisol_betrayal": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The relationship break was removed.", "finding": { "category": "character", "integrity_basis": "unearned_character_reversal", "title": "Marisol's absolute vow reverses after the bridge is removed", "summary": "The former relationship bridge is absent, so Marisol's promise and changed action conflict again.", "characters": ["Marisol Vega", "Ana Torres", "Director Vale"], "evidence": [{ "quote": "No matter what happens, I will never give Vale evidence against you.", "location": "Scene 1 — INT. ANA'S APARTMENT - NIGHT" }, { "quote": "Everything you need is on there.", "location": "Scene 2 — INT. DIRECTOR VALE'S OFFICE - MORNING" }] } } } }
     }
   ]
 }

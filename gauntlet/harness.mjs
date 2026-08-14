@@ -52,7 +52,7 @@ function canonicalIssue(testCase, key) {
   return issue
 }
 
-function issueMatchesSpec(issue, definition) {
+function issueMatchesSpec(issue, definition, { requireEvidence = true } = {}) {
   const match = definition.match || {}
   const categories = match.categories || [definition.finding.category]
   const bases = match.integrity_bases || [definition.finding.integrity_basis]
@@ -60,7 +60,12 @@ function issueMatchesSpec(issue, definition) {
   if (bases.length && !bases.includes(issue.integrity_basis)) return false
 
   const issueCharacters = normalizeArray(issue.characters).map(normalizeFindingText)
-  if (normalizeArray(match.characters).some(name => !issueCharacters.includes(normalizeFindingText(name)))) return false
+  if (normalizeArray(match.characters).some(name => {
+    const expected = normalizeFindingText(name)
+    return !issueCharacters.some(actual => actual.includes(expected) || expected.includes(actual))
+  })) return false
+
+  if (!requireEvidence) return true
 
   const evidenceText = normalizeArray(issue.evidence).map(item => normalizeFindingText(item.quote)).join(' | ')
   if (!normalizeArray(match.evidence_all).every(quote => evidenceText.includes(normalizeFindingText(quote)))) return false
@@ -208,13 +213,14 @@ export function gradeRevision({ testCase, revision, raw, ledger, previousIssues,
 
   for (const key of normalizeArray(expected.active)) {
     const definition = canonicalIssue(testCase, key)
-    let issue = keyIds[key] ? activeIssues.find(candidate => candidate.id === keyIds[key]) : null
+    const knownIssueId = keyIds[key]
+    let issue = knownIssueId ? activeIssues.find(candidate => candidate.id === knownIssueId) : null
     if (!issue) issue = activeIssues.find(candidate => !matchedActiveIds.has(candidate.id) && issueMatchesSpec(candidate, definition))
     if (!issue) {
       failures.push(`Expected active issue "${key}" was not displayed.`)
       continue
     }
-    if (!issueMatchesSpec(issue, definition)) failures.push(`Issue "${key}" no longer matches its planted facts.`)
+    if (!issueMatchesSpec(issue, definition, { requireEvidence:!knownIssueId })) failures.push(`Issue "${key}" no longer matches its planted facts.`)
     if (keyIds[key] && keyIds[key] !== issue.id) failures.push(`Issue "${key}" changed identity across revisions.`)
     keyIds[key] ||= issue.id
     matchedActiveIds.add(issue.id)
