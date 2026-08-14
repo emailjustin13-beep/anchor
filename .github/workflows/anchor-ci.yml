@@ -46,3 +46,45 @@ jobs:
 
       - name: Build production application
         run: npm run build
+
+  live-gauntlet:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.actor == 'emailjustin13-beep' &&
+      contains(github.event.pull_request.title, '[live-gauntlet]')
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_DRAFT_SCAN_MODEL: ${{ vars.ANTHROPIC_DRAFT_SCAN_MODEL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require the server-only provider secret
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+      - name: Run one live model pass
+        run: node scripts/run-gauntlet.mjs --mode live --repeat 1 --report artifacts/gauntlet/live-report.json
+
+      - name: Upload live Gauntlet report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: anchor-live-gauntlet-pr-report
+          path: artifacts/gauntlet/live-report.json
+          if-no-files-found: warn

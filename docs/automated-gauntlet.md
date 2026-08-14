@@ -71,6 +71,8 @@ Never put this value in a fixture, commit, issue, pull request, report, browser 
 
 Once the secret exists, the workflow can be launched from GitHub's **Actions → Anchor Live Gauntlet → Run workflow**. Justin does not need to paste screenplay revisions or operate Scan Draft manually.
 
+Before that workflow reaches the default branch, the current release PR can run one complete live pass without merging. The PR title must temporarily include `[live-gauntlet]`, the triggering actor must be `emailjustin13-beep`, and the ordinary CI verification must pass first. Remove the title marker as soon as the run starts. Forked pull requests never receive the repository secret.
+
 ## Adding a permanent case
 
 1. Add one JSON file under `gauntlet/cases/`.
