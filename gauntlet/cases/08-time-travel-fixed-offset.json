@@ -1,0 +1,152 @@
+{
+  "id": "case-08-time-travel-fixed-offset",
+  "title": "Fixed-offset time travel and a consistent bootstrap loop",
+  "characters": [
+    {
+      "id": "mira",
+      "name": "Dr. Mira Sen",
+      "role": "Chronology physicist",
+      "goals": "Complete a stable twenty-four-hour loop",
+      "fears": "Breaking the gate's fixed offset",
+      "personality": "Exacting",
+      "voice": "Precise",
+      "life_state": "alive"
+    }
+  ],
+  "relationships": [],
+  "issues": {
+    "wrong_arrival_date": {
+      "finding": {
+        "category": "timeline",
+        "priority": "high",
+        "title": "Mira arrives forty-eight hours before a fixed twenty-four-hour jump",
+        "summary": "The gate is explicitly fixed at twenty-four hours into the past, but Mira materializes two calendar days before departure.",
+        "question": "Can Mira's May 10 arrival and the gate's fixed twenty-four-hour offset both be correct?",
+        "integrity_basis": "timeline_impossibility",
+        "conflicting_fact_a": "The gate moves every traveler exactly twenty-four hours into the past and never varies.",
+        "conflicting_fact_b": "Mira departs May 12 at 10:00 p.m. and materializes May 10 at 10:00 p.m.",
+        "plausible_inference": false,
+        "inference_explanation": "The explicit forty-eight-hour calendar difference cannot be bridged by the stated fixed offset.",
+        "possibilities": [],
+        "characters": [
+          "Dr. Mira Sen"
+        ],
+        "evidence": [
+          {
+            "quote": "The gate moves a traveler exactly twenty-four hours into the past. The offset never varies.",
+            "location": "INT. CHRONOLOGY LAB - MAY 12, 2026 - 10:00 P.M."
+          },
+          {
+            "quote": "Mira materializes at 10:00 p.m. on May 10, 2026.",
+            "location": "INT. CHRONOLOGY LAB - MAY 10, 2026 - 10:00 P.M."
+          }
+        ]
+      },
+      "match": {
+        "categories": [
+          "timeline",
+          "continuity"
+        ],
+        "integrity_bases": [
+          "timeline_impossibility",
+          "incompatible_facts"
+        ],
+        "characters": [
+          "Mira Sen"
+        ],
+        "evidence_all": [
+          "exactly twenty four hours",
+          "may 10 2026"
+        ]
+      }
+    }
+  },
+  "revisions": [
+    {
+      "id": "consistent-bootstrap-loop",
+      "script": "[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 9:00 P.M.\n[action]Mira opens Locker 7 and finds a blue notebook in her own handwriting: LEAVE THIS HERE FOR ME TOMORROW.\n[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 10:00 P.M.\n[action]The gate moves a traveler exactly twenty-four hours into the past. The offset never varies.\n[action]Mira enters the gate carrying the same blue notebook.\n[scene]INT. CHRONOLOGY LAB - MAY 11, 2026 - 10:00 P.M.\n[action]Mira materializes at 10:00 p.m. on May 11, 2026. She writes LEAVE THIS HERE FOR ME TOMORROW and places the blue notebook in Locker 7.",
+      "expect": {
+        "active": [],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [
+          "bootstrap paradox",
+          "notebook has no origin",
+          "two notebooks",
+          "arrives before she leaves"
+        ],
+        "scan_mode": "initial"
+      },
+      "mock": {}
+    },
+    {
+      "id": "fixed-offset-violated",
+      "script": "[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 9:00 P.M.\n[action]Mira opens Locker 7 and finds a blue notebook in her own handwriting: LEAVE THIS HERE FOR ME TOMORROW.\n[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 10:00 P.M.\n[action]The gate moves a traveler exactly twenty-four hours into the past. The offset never varies.\n[action]Mira enters the gate carrying the same blue notebook.\n[scene]INT. CHRONOLOGY LAB - MAY 10, 2026 - 10:00 P.M.\n[action]Mira materializes at 10:00 p.m. on May 10, 2026. She places the blue notebook in Locker 7.",
+      "expect": {
+        "active": [
+          "wrong_arrival_date"
+        ],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [
+          "notebook has no origin"
+        ],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "new": [
+          "wrong_arrival_date"
+        ]
+      }
+    },
+    {
+      "id": "arrival-date-corrected",
+      "script": "[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 9:00 P.M.\n[action]Mira opens Locker 7 and finds a blue notebook in her own handwriting: LEAVE THIS HERE FOR ME TOMORROW.\n[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 10:00 P.M.\n[action]The gate moves a traveler exactly twenty-four hours into the past. The offset never varies.\n[action]Mira enters the gate carrying the same blue notebook.\n[scene]INT. CHRONOLOGY LAB - MAY 11, 2026 - 10:00 P.M.\n[action]Mira materializes at 10:00 p.m. on May 11, 2026. She writes LEAVE THIS HERE FOR ME TOMORROW and places the blue notebook in Locker 7.",
+      "expect": {
+        "active": [],
+        "resolved": [
+          "wrong_arrival_date"
+        ],
+        "dismissed": [],
+        "forbidden": [
+          "bootstrap paradox"
+        ],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "decisions": {
+          "wrong_arrival_date": {
+            "status": "resolved",
+            "resolution_basis": "conflict_removed",
+            "resolution_evidence": [],
+            "decision_explanation": "The arrival now matches the fixed twenty-four-hour offset."
+          }
+        }
+      }
+    },
+    {
+      "id": "wrong-arrival-restored",
+      "script": "[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 9:00 P.M.\n[action]Mira opens Locker 7 and finds a blue notebook in her own handwriting: LEAVE THIS HERE FOR ME TOMORROW.\n[scene]INT. CHRONOLOGY LAB - MAY 12, 2026 - 10:00 P.M.\n[action]The gate moves a traveler exactly twenty-four hours into the past. The offset never varies.\n[action]Mira enters the gate carrying the same blue notebook.\n[scene]INT. CHRONOLOGY LAB - MAY 10, 2026 - 10:00 P.M.\n[action]Mira materializes at 10:00 p.m. on May 10, 2026. She places the blue notebook in Locker 7.",
+      "expect": {
+        "active": [
+          "wrong_arrival_date"
+        ],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "decisions": {
+          "wrong_arrival_date": {
+            "status": "reopened",
+            "resolution_basis": "not_applicable",
+            "resolution_evidence": [],
+            "plausible_inference": false,
+            "decision_explanation": "The forty-eight-hour arrival conflict returned."
+          }
+        }
+      }
+    }
+  ]
+}

@@ -51,6 +51,6 @@ npm run build
 npm audit --omit=dev
 ```
 
-The suite currently contains 41 regression tests plus 7 permanent Gauntlet screenplays with 22 chronological revisions. Coverage includes explicit AI execution, private data access, private Storage URLs, database release hardening, screenplay editing, file interchange, recovery, evidence navigation, Story Memory, issue reconciliation, Case 02, false-positive suppression, model retry behavior, and release configuration. GitHub Actions runs the tests, the deterministic Gauntlet twice, and the production build on pushes and pull requests. See `docs/automated-gauntlet.md` for live model evaluation.
+The suite currently contains 41 regression tests plus 10 permanent Gauntlet screenplays with 34 chronological revisions. Coverage includes explicit AI execution, private data access, private Storage URLs, database release hardening, screenplay editing, file interchange, recovery, evidence navigation, Story Memory, issue reconciliation, Case 02, false-positive suppression, fixed and branching time travel, personal chronology, model retry behavior, and release configuration. GitHub Actions runs the tests, the deterministic Gauntlet twice, and the production build on pushes and pull requests. See `docs/automated-gauntlet.md` for live model evaluation.
 
 Production should only be promoted from the exact commit that passed CI. After assigning a production domain, add it to Supabase Auth and verify Google sign-in and owner isolation on a device that is not signed into Vercel.

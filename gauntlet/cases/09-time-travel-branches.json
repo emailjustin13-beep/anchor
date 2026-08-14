@@ -1,0 +1,169 @@
+{
+  "id": "case-09-time-travel-branches",
+  "title": "Branching timelines, duplicate selves, and cross-branch knowledge",
+  "characters": [
+    {
+      "id": "ilya",
+      "name": "Ilya Cross",
+      "role": "Temporal field agent",
+      "goals": "Change the Beta branch access code",
+      "fears": "Contaminating the origin branch",
+      "personality": "Methodical",
+      "voice": "Controlled",
+      "life_state": "alive"
+    },
+    {
+      "id": "rowan",
+      "name": "Rowan Pike",
+      "role": "Origin-branch mission control",
+      "goals": "Monitor Ilya's jump",
+      "fears": "Losing contact across branches",
+      "personality": "Cautious",
+      "voice": "Technical",
+      "life_state": "alive"
+    }
+  ],
+  "relationships": [],
+  "issues": {
+    "rowan_beta_code": {
+      "finding": {
+        "category": "character",
+        "priority": "high",
+        "title": "Rowan knows a code created only in another branch",
+        "summary": "Ilya creates CEDAR-9 only in Branch Beta, while the rules block memory transfer, but Rowan uses it in Branch Alpha without receiving a message.",
+        "question": "How does Rowan know CEDAR-9 in Branch Alpha under the stated branch-isolation rules?",
+        "integrity_basis": "unsupported_knowledge",
+        "conflicting_fact_a": "The new code CEDAR-9 exists only in Branch Beta, and memories do not cross branches.",
+        "conflicting_fact_b": "Rowan enters CEDAR-9 in Branch Alpha without any shown transmission.",
+        "plausible_inference": false,
+        "inference_explanation": "The draft establishes no message, shared memory, or other cross-branch evidence before Rowan uses the code.",
+        "possibilities": [],
+        "characters": [
+          "Ilya Cross",
+          "Rowan Pike"
+        ],
+        "evidence": [
+          {
+            "quote": "Ilya overwrites PINE-4 with CEDAR-9. Only the Beta card now carries CEDAR-9.",
+            "location": "INT. VAULT ANTECHAMBER - BRANCH BETA - JUNE 3 - 7:50 A.M."
+          },
+          {
+            "quote": "No transmission arrives. Rowan types CEDAR-9 into the Alpha console.",
+            "location": "INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:05 A.M."
+          }
+        ]
+      },
+      "match": {
+        "categories": [
+          "character",
+          "continuity"
+        ],
+        "integrity_bases": [
+          "unsupported_knowledge"
+        ],
+        "characters": [
+          "Rowan Pike"
+        ],
+        "evidence_all": [
+          "only the beta card",
+          "rowan types cedar 9"
+        ]
+      }
+    }
+  },
+  "revisions": [
+    {
+      "id": "branching-logic-is-consistent",
+      "script": "[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:00 A.M.\n[action]The jump rules fill the wall: EACH JUMP CREATES A SEPARATE BRANCH AT THE DESTINATION. EVENTS DO NOT REWRITE THE ORIGIN BRANCH. MEMORIES DO NOT CROSS BRANCHES. A RETURN BEACON CAN SEND ONE RECORDED MESSAGE TO THE ORIGIN BRANCH.\n[action]Ilya shows Rowan an access card marked PINE-4, then enters the gate without speaking.\n[scene]INT. VAULT ANTECHAMBER - BRANCH BETA - JUNE 3 - 7:50 A.M.\n[action]Ilya lands beside her younger Beta self, who still holds an intact access card marked PINE-4. The two Ilyas face each other.\n[action]Ilya overwrites PINE-4 with CEDAR-9. Only the Beta card now carries CEDAR-9.",
+      "expect": {
+        "active": [],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [
+          "duplicate ilya",
+          "two ilyas",
+          "card should be overwritten in alpha",
+          "younger self",
+          "branch contradiction"
+        ],
+        "scan_mode": "initial"
+      },
+      "mock": {}
+    },
+    {
+      "id": "knowledge-crosses-without-message",
+      "script": "[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:00 A.M.\n[action]The jump rules fill the wall: EACH JUMP CREATES A SEPARATE BRANCH AT THE DESTINATION. EVENTS DO NOT REWRITE THE ORIGIN BRANCH. MEMORIES DO NOT CROSS BRANCHES. A RETURN BEACON CAN SEND ONE RECORDED MESSAGE TO THE ORIGIN BRANCH.\n[action]Ilya shows Rowan an access card marked PINE-4, then enters the gate without speaking.\n[scene]INT. VAULT ANTECHAMBER - BRANCH BETA - JUNE 3 - 7:50 A.M.\n[action]Ilya lands beside her younger Beta self, who still holds an intact access card marked PINE-4. The two Ilyas face each other.\n[action]Ilya overwrites PINE-4 with CEDAR-9. Only the Beta card now carries CEDAR-9.\n[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:05 A.M.\n[action]No transmission arrives. Rowan types CEDAR-9 into the Alpha console.",
+      "expect": {
+        "active": [
+          "rowan_beta_code"
+        ],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [
+          "duplicate ilya",
+          "two ilyas"
+        ],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "new": [
+          "rowan_beta_code"
+        ]
+      }
+    },
+    {
+      "id": "return-beacon-bridges-knowledge",
+      "script": "[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:00 A.M.\n[action]The jump rules fill the wall: EACH JUMP CREATES A SEPARATE BRANCH AT THE DESTINATION. EVENTS DO NOT REWRITE THE ORIGIN BRANCH. MEMORIES DO NOT CROSS BRANCHES. A RETURN BEACON CAN SEND ONE RECORDED MESSAGE TO THE ORIGIN BRANCH.\n[action]Ilya shows Rowan an access card marked PINE-4, then enters the gate without speaking.\n[scene]INT. VAULT ANTECHAMBER - BRANCH BETA - JUNE 3 - 7:50 A.M.\n[action]Ilya lands beside her younger Beta self, who still holds an intact access card marked PINE-4. The two Ilyas face each other.\n[action]Ilya overwrites PINE-4 with CEDAR-9. Only the Beta card now carries CEDAR-9.\n[action]Ilya records CEDAR-9 into the return beacon. The beacon sends the recording to origin Branch Alpha.\n[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:05 A.M.\n[action]Rowan's receiver plays Ilya's recorded voice: CEDAR-9. Rowan types CEDAR-9 into the Alpha console.",
+      "expect": {
+        "active": [],
+        "resolved": [
+          "rowan_beta_code"
+        ],
+        "dismissed": [],
+        "forbidden": [
+          "memory crossed branches"
+        ],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "decisions": {
+          "rowan_beta_code": {
+            "status": "resolved",
+            "resolution_basis": "on_page_bridge",
+            "resolution_evidence": [
+              {
+                "quote": "Rowan's receiver plays Ilya's recorded voice: CEDAR-9.",
+                "location": "INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:05 A.M."
+              }
+            ],
+            "decision_explanation": "The return beacon gives Rowan an explicit cross-branch information path."
+          }
+        }
+      }
+    },
+    {
+      "id": "beacon-removed-reopens-gap",
+      "script": "[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:00 A.M.\n[action]The jump rules fill the wall: EACH JUMP CREATES A SEPARATE BRANCH AT THE DESTINATION. EVENTS DO NOT REWRITE THE ORIGIN BRANCH. MEMORIES DO NOT CROSS BRANCHES. A RETURN BEACON CAN SEND ONE RECORDED MESSAGE TO THE ORIGIN BRANCH.\n[action]Ilya shows Rowan an access card marked PINE-4, then enters the gate without speaking.\n[scene]INT. VAULT ANTECHAMBER - BRANCH BETA - JUNE 3 - 7:50 A.M.\n[action]Ilya lands beside her younger Beta self, who still holds an intact access card marked PINE-4. The two Ilyas face each other.\n[action]Ilya overwrites PINE-4 with CEDAR-9. Only the Beta card now carries CEDAR-9.\n[scene]INT. MISSION CONTROL - BRANCH ALPHA - JUNE 3 - 8:05 A.M.\n[action]No transmission arrives. Rowan types CEDAR-9 into the Alpha console.",
+      "expect": {
+        "active": [
+          "rowan_beta_code"
+        ],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "decisions": {
+          "rowan_beta_code": {
+            "status": "reopened",
+            "resolution_basis": "not_applicable",
+            "resolution_evidence": [],
+            "plausible_inference": false,
+            "decision_explanation": "The only shown cross-branch information path was removed."
+          }
+        }
+      }
+    }
+  ]
+}

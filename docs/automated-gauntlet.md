@@ -20,8 +20,8 @@ That creates a downloadable GitHub Actions artifact without calling Anthropic or
 
 The versioned cases live in `gauntlet/cases/`.
 
-- 7 screenplay cases
-- 22 chronological revisions per pass
+- 10 screenplay cases
+- 34 chronological revisions per pass
 - hard factual continuity
 - reasonable-audience inference
 - unsupported character knowledge
@@ -29,6 +29,9 @@ The versioned cases live in `gauntlet/cases/`.
 - dialogue-versus-objective-truth suppression
 - character life state
 - explicit timeline impossibility
+- fixed-offset time travel and bootstrap-loop suppression
+- branching timelines, duplicate selves, and cross-branch knowledge
+- fixed-timeline personal chronology and nonlinear life-state order
 - character reversal
 - relationship reversal
 - writer dismissal

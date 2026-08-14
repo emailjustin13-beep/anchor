@@ -1,0 +1,155 @@
+{
+  "id": "case-10-time-travel-personal-chronology",
+  "title": "Fixed timeline, duplicate ages, and personal chronology",
+  "characters": [
+    {
+      "id": "lena",
+      "name": "Lena Ortiz",
+      "role": "One-way time traveler",
+      "goals": "Complete the event she witnessed as a child",
+      "fears": "Mistaking calendar order for personal order",
+      "personality": "Resolute",
+      "voice": "Measured",
+      "life_state": "unknown"
+    }
+  ],
+  "relationships": [],
+  "issues": {
+    "elder_lena_returns": {
+      "finding": {
+        "category": "life_state",
+        "priority": "high",
+        "title": "The same elder Lena returns alive after her one-way trip and recorded death",
+        "summary": "The fixed timeline sends Elder Lena one way to 1988, where her identified body is recorded dead, but that exact traveler later walks into the lab in 2049.",
+        "question": "Can the same Elder Lena return alive in 2049 under the one-way fixed-timeline rules and her recorded death?",
+        "integrity_basis": "unsupported_state_change",
+        "conflicting_fact_a": "Elder Lena dies in 1988 and the coroner records her unique wrist serial.",
+        "conflicting_fact_b": "The same traveler with that wrist serial walks into the lab alive in 2049 despite the one-way gate.",
+        "plausible_inference": false,
+        "inference_explanation": "The surviving child Lena explains the later 2048 departure, but it does not explain the dead traveler's personal return after that departure.",
+        "possibilities": [],
+        "characters": [
+          "Lena Ortiz"
+        ],
+        "evidence": [
+          {
+            "quote": "Elder Lena dies at 3:14 a.m. The coroner records her wrist serial: L-2048-77.",
+            "location": "INT. FARMHOUSE - 1988 - AFTER THE ARRIVAL"
+          },
+          {
+            "quote": "The same Elder Lena, identified by wrist serial L-2048-77, walks into the lab alive on January 1, 2049.",
+            "location": "INT. GATE LAB - 2049 - AFTER THE JUMP"
+          }
+        ]
+      },
+      "match": {
+        "categories": [
+          "life_state",
+          "timeline",
+          "continuity"
+        ],
+        "integrity_bases": [
+          "unsupported_state_change",
+          "timeline_impossibility",
+          "incompatible_facts"
+        ],
+        "characters": [
+          "Lena Ortiz"
+        ],
+        "evidence_all": [
+          "elder lena dies",
+          "same elder lena"
+        ]
+      }
+    }
+  },
+  "revisions": [
+    {
+      "id": "predestination-loop-is-consistent",
+      "script": "[scene]INT. FARMHOUSE - 1988 - AFTER THE ARRIVAL\n[action]The fixed-timeline rules are written in Elder Lena's journal: THE GATE IS ONE-WAY FROM 2048 TO 1988. A TRAVELER'S PERSONAL LIFE CONTINUES FORWARD WHEN CALENDAR TIME MOVES BACKWARD. DIFFERENT-AGE VERSIONS MAY COEXIST.\n[action]Elder Lena Ortiz, age seventy-two, holds the hand of twelve-year-old Lena Ortiz. They share the same crescent scar.\n[action]Elder Lena dies at 3:14 a.m. The coroner records her wrist serial: L-2048-77. Twelve-year-old Lena remains alive.\n[scene]INT. GATE LAB - 2048 - BEFORE THE ARRIVAL\n[action]Sixty years later in young Lena's personal life, Lena is now seventy-two and bears the same crescent scar and wrist serial L-2048-77.\n[action]She enters the one-way gate to 1988, beginning the journey that ends at the farmhouse.",
+      "expect": {
+        "active": [],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [
+          "alive after death",
+          "resurrection",
+          "duplicate lena",
+          "two lenas",
+          "life state conflict"
+        ],
+        "scan_mode": "initial"
+      },
+      "mock": {}
+    },
+    {
+      "id": "dead-traveler-impossibly-returns",
+      "script": "[scene]INT. FARMHOUSE - 1988 - AFTER THE ARRIVAL\n[action]The fixed-timeline rules are written in Elder Lena's journal: THE GATE IS ONE-WAY FROM 2048 TO 1988. A TRAVELER'S PERSONAL LIFE CONTINUES FORWARD WHEN CALENDAR TIME MOVES BACKWARD. DIFFERENT-AGE VERSIONS MAY COEXIST.\n[action]Elder Lena Ortiz, age seventy-two, holds the hand of twelve-year-old Lena Ortiz. They share the same crescent scar.\n[action]Elder Lena dies at 3:14 a.m. The coroner records her wrist serial: L-2048-77. Twelve-year-old Lena remains alive.\n[scene]INT. GATE LAB - 2048 - BEFORE THE ARRIVAL\n[action]Sixty years later in young Lena's personal life, Lena is now seventy-two and bears the same crescent scar and wrist serial L-2048-77.\n[action]She enters the one-way gate to 1988, beginning the journey that ends at the farmhouse.\n[scene]INT. GATE LAB - 2049 - AFTER THE JUMP\n[action]The same Elder Lena, identified by wrist serial L-2048-77, walks into the lab alive on January 1, 2049. No gate event or branch is shown.",
+      "expect": {
+        "active": [
+          "elder_lena_returns"
+        ],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [
+          "twelve year old lena should be dead"
+        ],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "new": [
+          "elder_lena_returns"
+        ]
+      }
+    },
+    {
+      "id": "prerecorded-message-replaces-return",
+      "script": "[scene]INT. FARMHOUSE - 1988 - AFTER THE ARRIVAL\n[action]The fixed-timeline rules are written in Elder Lena's journal: THE GATE IS ONE-WAY FROM 2048 TO 1988. A TRAVELER'S PERSONAL LIFE CONTINUES FORWARD WHEN CALENDAR TIME MOVES BACKWARD. DIFFERENT-AGE VERSIONS MAY COEXIST.\n[action]Elder Lena Ortiz, age seventy-two, holds the hand of twelve-year-old Lena Ortiz. They share the same crescent scar.\n[action]Elder Lena dies at 3:14 a.m. The coroner records her wrist serial: L-2048-77. Twelve-year-old Lena remains alive.\n[scene]INT. GATE LAB - 2048 - BEFORE THE ARRIVAL\n[action]Sixty years later in young Lena's personal life, Lena is now seventy-two and bears the same crescent scar and wrist serial L-2048-77.\n[action]Before entering the gate, Lena records a message for the lab's 2049 timer. She enters the one-way gate to 1988, beginning the journey that ends at the farmhouse.\n[scene]INT. GATE LAB - 2049 - AFTER THE JUMP\n[action]A monitor plays Lena's prerecorded message from before her departure. No living Lena enters the lab.",
+      "expect": {
+        "active": [],
+        "resolved": [
+          "elder_lena_returns"
+        ],
+        "dismissed": [],
+        "forbidden": [
+          "lena returns alive"
+        ],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "decisions": {
+          "elder_lena_returns": {
+            "status": "resolved",
+            "resolution_basis": "conflict_removed",
+            "resolution_evidence": [],
+            "decision_explanation": "The living return was replaced by a recording made before the one-way departure."
+          }
+        }
+      }
+    },
+    {
+      "id": "impossible-return-restored",
+      "script": "[scene]INT. FARMHOUSE - 1988 - AFTER THE ARRIVAL\n[action]The fixed-timeline rules are written in Elder Lena's journal: THE GATE IS ONE-WAY FROM 2048 TO 1988. A TRAVELER'S PERSONAL LIFE CONTINUES FORWARD WHEN CALENDAR TIME MOVES BACKWARD. DIFFERENT-AGE VERSIONS MAY COEXIST.\n[action]Elder Lena Ortiz, age seventy-two, holds the hand of twelve-year-old Lena Ortiz. They share the same crescent scar.\n[action]Elder Lena dies at 3:14 a.m. The coroner records her wrist serial: L-2048-77. Twelve-year-old Lena remains alive.\n[scene]INT. GATE LAB - 2048 - BEFORE THE ARRIVAL\n[action]Sixty years later in young Lena's personal life, Lena is now seventy-two and bears the same crescent scar and wrist serial L-2048-77.\n[action]She enters the one-way gate to 1988, beginning the journey that ends at the farmhouse.\n[scene]INT. GATE LAB - 2049 - AFTER THE JUMP\n[action]The same Elder Lena, identified by wrist serial L-2048-77, walks into the lab alive on January 1, 2049. No gate event or branch is shown.",
+      "expect": {
+        "active": [
+          "elder_lena_returns"
+        ],
+        "resolved": [],
+        "dismissed": [],
+        "forbidden": [],
+        "scan_mode": "incremental"
+      },
+      "mock": {
+        "decisions": {
+          "elder_lena_returns": {
+            "status": "reopened",
+            "resolution_basis": "not_applicable",
+            "resolution_evidence": [],
+            "plausible_inference": false,
+            "decision_explanation": "The same dead traveler's unsupported return was restored."
+          }
+        }
+      }
+    }
+  ]
+}
