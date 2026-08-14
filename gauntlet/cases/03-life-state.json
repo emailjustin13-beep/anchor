@@ -1,0 +1,52 @@
+{
+  "id": "case-03-life-state",
+  "title": "Irreversible life-state conflict and evidence-backed reveal",
+  "characters": [
+    { "id": "isaac", "name": "Isaac Vale", "role": "Missing financier", "goals": "Escape prosecution", "fears": "Capture", "personality": "Secretive", "voice": "Measured", "life_state": "deceased" },
+    { "id": "rhea", "name": "Rhea Cole", "role": "Investigator", "goals": "Identify the body", "fears": "A false conclusion", "personality": "Skeptical", "voice": "Direct", "life_state": "alive" }
+  ],
+  "relationships": [],
+  "issues": {
+    "isaac_after_cremation": {
+      "finding": {
+        "category": "life_state",
+        "priority": "high",
+        "title": "Isaac appears alive after his identified body is cremated",
+        "summary": "The draft objectively identifies and cremates Isaac's body before Isaac enters alive.",
+        "question": "Is Isaac's return after the confirmed cremation intentional?",
+        "integrity_basis": "unsupported_state_change",
+        "conflicting_fact_a": "The lab identifies the body as Isaac and the hospital cremates it.",
+        "conflicting_fact_b": "Isaac later walks into the station alive.",
+        "plausible_inference": false,
+        "inference_explanation": "No current evidence challenges the identification or cremation.",
+        "possibilities": [],
+        "characters": ["Isaac Vale", "Rhea Cole"],
+        "evidence": [
+          { "quote": "The lab confirms the body is Isaac Vale. The body is cremated before dawn.", "location": "INT. COUNTY MORGUE - NIGHT" },
+          { "quote": "Isaac Vale walks into the station, alive and uninjured.", "location": "INT. POLICE STATION - MORNING" }
+        ]
+      },
+      "match": { "categories": ["life_state", "continuity"], "integrity_bases": ["incompatible_facts", "unsupported_state_change"], "characters": ["Isaac Vale"], "evidence_all": ["cremated before dawn", "alive and uninjured"] }
+    }
+  },
+  "revisions": [
+    {
+      "id": "confirmed-death-conflict",
+      "script": "[scene]INT. COUNTY MORGUE - NIGHT\n[action]A sealed body bag rests beneath the examination light.\n[character]RHEA\n[dialogue]Run the DNA twice.\n[action]The lab confirms the body is Isaac Vale. The body is cremated before dawn.\n[scene]INT. POLICE STATION - MORNING\n[action]Isaac Vale walks into the station, alive and uninjured.",
+      "expect": { "active": ["isaac_after_cremation"], "resolved": [], "dismissed": [], "forbidden": ["missing person returned"], "scan_mode": "initial" },
+      "mock": { "new": ["isaac_after_cremation"] }
+    },
+    {
+      "id": "forged-identification-reveal",
+      "script": "[scene]INT. COUNTY MORGUE - NIGHT\n[action]A sealed body bag rests beneath the examination light.\n[character]RHEA\n[dialogue]Run the DNA twice.\n[action]The lab confirms the body is Isaac Vale. The body is cremated before dawn.\n[scene]INT. POLICE STATION - MORNING\n[action]Rhea opens the lab audit. The body was an unidentified donor, and the DNA result was forged under Isaac's account.\n[action]Isaac Vale walks into the station, alive and uninjured.",
+      "expect": { "active": [], "resolved": ["isaac_after_cremation"], "dismissed": [], "forbidden": ["supernatural resurrection"], "scan_mode": "incremental" },
+      "mock": { "decisions": { "isaac_after_cremation": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "The body was an unidentified donor, and the DNA result was forged under Isaac's account.", "location": "INT. POLICE STATION - MORNING" }], "decision_explanation": "The audit establishes that the cremated body was not Isaac." } } }
+    },
+    {
+      "id": "reveal-removed-reopens",
+      "script": "[scene]INT. COUNTY MORGUE - NIGHT\n[action]A sealed body bag rests beneath the examination light.\n[character]RHEA\n[dialogue]Run the DNA twice.\n[action]The lab confirms the body is Isaac Vale. The body is cremated before dawn.\n[scene]INT. POLICE STATION - MORNING\n[action]Isaac Vale walks into the station, alive and uninjured.",
+      "expect": { "active": ["isaac_after_cremation"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
+      "mock": { "decisions": { "isaac_after_cremation": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The forged-identification reveal was removed." } } }
+    }
+  ]
+}

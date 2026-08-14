@@ -1,0 +1,51 @@
+{
+  "id": "case-04-timeline",
+  "title": "Explicit travel-time impossibility",
+  "characters": [
+    { "id": "omar", "name": "Omar Reyes", "role": "Courier", "goals": "Reach North Point", "fears": "Missing the exchange", "personality": "Punctual", "voice": "Practical", "life_state": "alive" }
+  ],
+  "relationships": [],
+  "issues": {
+    "ferry_timing": {
+      "finding": {
+        "category": "timeline",
+        "priority": "high",
+        "title": "The ferry arrives before its minimum travel time",
+        "summary": "A two-hour crossing leaves at 11:30 a.m. but is shown arriving at noon the same day.",
+        "question": "Can the noon arrival and the stated two-hour crossing both be correct?",
+        "integrity_basis": "timeline_impossibility",
+        "conflicting_fact_a": "The crossing takes exactly two hours and departs at 11:30 a.m.",
+        "conflicting_fact_b": "Omar arrives at North Point at noon the same day.",
+        "plausible_inference": false,
+        "inference_explanation": "The exact times leave ninety minutes unaccounted for.",
+        "possibilities": [],
+        "characters": ["Omar Reyes"],
+        "evidence": [
+          { "quote": "The crossing takes exactly two hours. Departure is 11:30 a.m.", "location": "EXT. SOUTH FERRY TERMINAL - MORNING" },
+          { "quote": "The clock reads 12:00 p.m. Omar steps off at North Point.", "location": "EXT. NORTH POINT DOCK - NOON" }
+        ]
+      },
+      "match": { "categories": ["timeline"], "integrity_bases": ["timeline_impossibility"], "characters": ["Omar Reyes"], "evidence_all": ["exactly two hours", "12 00 p m"] }
+    }
+  },
+  "revisions": [
+    {
+      "id": "impossible-crossing",
+      "script": "[scene]EXT. SOUTH FERRY TERMINAL - MORNING\n[action]Omar checks the posted schedule.\n[action]The crossing takes exactly two hours. Departure is 11:30 a.m.\n[scene]EXT. NORTH POINT DOCK - NOON\n[action]The clock reads 12:00 p.m. Omar steps off at North Point.",
+      "expect": { "active": ["ferry_timing"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "initial" },
+      "mock": { "new": ["ferry_timing"] }
+    },
+    {
+      "id": "departure-time-corrected",
+      "script": "[scene]EXT. SOUTH FERRY TERMINAL - MORNING\n[action]Omar checks the posted schedule.\n[action]The crossing takes exactly two hours. Departure is 9:30 a.m.\n[scene]EXT. NORTH POINT DOCK - NOON\n[action]The clock reads 12:00 p.m. Omar steps off at North Point.",
+      "expect": { "active": [], "resolved": ["ferry_timing"], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
+      "mock": { "decisions": { "ferry_timing": { "status": "resolved", "resolution_basis": "conflict_removed", "resolution_evidence": [], "decision_explanation": "The conflicting departure time was replaced." } } }
+    },
+    {
+      "id": "bad-time-restored",
+      "script": "[scene]EXT. SOUTH FERRY TERMINAL - MORNING\n[action]Omar checks the posted schedule.\n[action]The crossing takes exactly two hours. Departure is 11:30 a.m.\n[scene]EXT. NORTH POINT DOCK - NOON\n[action]The clock reads 12:00 p.m. Omar steps off at North Point.",
+      "expect": { "active": ["ferry_timing"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
+      "mock": { "decisions": { "ferry_timing": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The impossible departure time returned." } } }
+    }
+  ]
+}

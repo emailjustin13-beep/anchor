@@ -1,0 +1,68 @@
+name: Anchor Live Gauntlet
+
+on:
+  workflow_dispatch:
+    inputs:
+      repeats:
+        description: Complete passes through every selected revision
+        required: true
+        default: '3'
+        type: choice
+        options: ['1', '2', '3', '5']
+      case:
+        description: Optional exact case ID; leave blank for the complete suite
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anchor-live-gauntlet
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_DRAFT_SCAN_MODEL: ${{ vars.ANTHROPIC_DRAFT_SCAN_MODEL }}
+      GAUNTLET_REPEAT: ${{ inputs.repeats }}
+      GAUNTLET_CASE: ${{ inputs.case }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require the server-only provider secret
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+      - name: Run live model evaluation
+        run: |
+          args=(--mode live --repeat "$GAUNTLET_REPEAT" --report artifacts/gauntlet/live-report.json)
+          if [ -n "$GAUNTLET_CASE" ]; then
+            args+=(--case "$GAUNTLET_CASE")
+          fi
+          node scripts/run-gauntlet.mjs "${args[@]}"
+
+      - name: Upload live Gauntlet report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: anchor-live-gauntlet-report
+          path: artifacts/gauntlet/live-report.json
+          if-no-files-found: warn

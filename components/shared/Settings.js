@@ -10,22 +10,22 @@ const FEATURES = [
   {
     icon: '✦',
     name: 'X-Ray',
-    desc: 'Open the Write module and click X-Ray in the toolbar. While you write, it reads the current page and surfaces every character present — their goals, fears, and voice — without leaving the editor.',
+    desc: 'Open the Write module and click X-Ray in the toolbar. It surfaces characters on the current page — their goals, fears, and voice — without leaving the editor.',
   },
   {
     icon: '⚡',
     name: 'Pressure Test',
-    desc: 'In the Write module, highlight any text, right-click, and hit Pressure Test. Anchor checks the selected passage against your character\'s bible entry. It never rewrites — only assesses.',
+    desc: 'In the Write module, highlight text, right-click, and choose Pressure Test. Anchor cites the selected passage and returns a pass, question, or possible concern. It never rewrites.',
   },
   {
     icon: '◉',
     name: 'Living Bible',
-    desc: 'Four seconds after you stop typing, Anchor scans what you wrote. If something feels off — a character acting out of character, a relationship shifting — a whisper banner slides up from the bottom. You decide what to do with it.',
+    desc: 'Choose Scan Scene or Scan Draft when you want Anchor to check story integrity. It shows evidence and reasoning; you decide whether to confirm or dismiss every proposed change.',
   },
   {
     icon: '⬡',
     name: 'Ties That Bind',
-    desc: 'Click the ⬡ icon in the nav. Drag characters around the map. Click the midpoint indicator on any connection line to open the relationship card and view the arc timeline — how the relationship has evolved across acts.',
+    desc: 'Click the ⬡ icon in the nav. Drag characters around the map. Open a connection to review its chronological story timeline across scenes, acts, chapters, episodes, or sections.',
   },
   {
     icon: '✦',

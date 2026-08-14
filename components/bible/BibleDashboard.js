@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { callAI, buildFullReadPrompt } from '../../lib/ai'
+import { callAI, buildFullReadPrompt, INSIGHTS_SCHEMA, FULL_READ_SCHEMA } from '../../lib/ai'
+import { normalizeRelationshipTension } from '../../lib/relationshipTension.mjs'
 
 const REL_COLORS = { ally:'#3FB950',rival:'#F85149',romantic:'#DB61A2',family:'#58A6FF',mentor:'#D2A8FF',enemy:'#FF7B72',complicated:'#FFA657',stranger:'#6A6A88' }
 const FORMAT_LABELS = { screenplay:'Screenplay',novel:'Novel',short_story:'Short Story' }
@@ -40,7 +41,7 @@ Return only valid JSON. No preamble, no markdown.`
   }
 }
 
-export default function BibleDashboard({ project, characters, relationships, locations, script, onNavigate, onUpdateRelationship, pulseCache, setPulseCache, pulseScriptId, setPulseScriptId }) {
+export default function BibleDashboard({ project, characters, relationships, relationshipEvents = [], script, onNavigate, onCreateRelationship, onUpdateRelationship, onCreateRelationshipEvent, pulseCache, setPulseCache, pulseScriptId, setPulseScriptId }) {
   const words = script?.content ? script.content.replace(/\[\w+\]/g,'').split(/\s+/).filter(Boolean).length : 0
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [insightsError, setInsightsError] = useState('')
@@ -68,9 +69,7 @@ export default function BibleDashboard({ project, characters, relationships, loc
     setInsightsError('')
     try {
       const prompt = buildInsightsPrompt({ project, characters, relationships, script })
-      const raw = await callAI(prompt)
-      const clean = raw.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(clean)
+      const parsed = await callAI({ ...prompt, schema: INSIGHTS_SCHEMA, maxTokens: 1600 })
       setInsights(parsed)
       if (setPulseScriptId && script?.id) setPulseScriptId(script.id)
     } catch(e) {
@@ -87,11 +86,8 @@ export default function BibleDashboard({ project, characters, relationships, loc
     setFullReadOpen(true)
     try {
       const prompt = buildFullReadPrompt({ project, characters, relationships, script })
-      const raw    = await callAI(prompt)
-      const clean  = raw.replace(/```json|```/g, '').trim()
-      const jsonMatch = clean.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('No JSON returned')
-      setFullRead(JSON.parse(jsonMatch[0]))
+      const result = await callAI({ ...prompt, schema: FULL_READ_SCHEMA, maxTokens: 8000 })
+      setFullRead(result)
     } catch(e) {
       setFullReadError('Full Read failed: ' + e.message)
     }
@@ -99,28 +95,30 @@ export default function BibleDashboard({ project, characters, relationships, loc
   }
 
   async function confirmRelShift(shift) {
-    const key = `${shift.characterA}-${shift.characterB}`
-    const charA = characters.find(c => c.name === shift.characterA)
-    const charB = characters.find(c => c.name === shift.characterB)
+    const key = `${shift.character_a}-${shift.character_b}-${shift.sequence_index}`
+    const charA = characters.find(c => c.name.toLowerCase() === shift.character_a.toLowerCase())
+    const charB = characters.find(c => c.name.toLowerCase() === shift.character_b.toLowerCase())
     if (!charA || !charB || !onUpdateRelationship) return
-    const rel = relationships.find(r =>
+    let rel = relationships.find(r =>
       (r.character_a === charA.id && r.character_b === charB.id) ||
       (r.character_a === charB.id && r.character_b === charA.id)
     )
+    if (!rel && onCreateRelationship) rel = await onCreateRelationship(charA.id, charB.id)
     if (!rel) return
-    setConfirmingShifts(s => ({ ...s, [key]: true }))
-    const currentArc = Array.isArray(rel.arc) ? rel.arc : []
-    const newEntry = {
-      act:       shift.act,
-      type:      shift.type,
-      tension:   shift.tension,
-      note:      shift.shift,
-      timestamp: new Date().toISOString(),
-    }
+    const tension = normalizeRelationshipTension(shift.tension)
     await onUpdateRelationship(rel.id, {
       type:    shift.type,
-      tension: shift.tension,
-      arc:     [...currentArc, newEntry],
+      tension,
+    })
+    await onCreateRelationshipEvent?.(rel.id, {
+      sequence_index: Math.max(0, ...relationshipEvents.map(event => event.sequence_index || 0)) + 1,
+      segment_type: shift.segment_type,
+      segment_label: shift.segment_label,
+      relationship_type: shift.type,
+      tension,
+      summary: shift.summary,
+      evidence: shift.evidence,
+      source: 'full_read',
     })
     setConfirmingShifts(s => ({ ...s, [key]: true }))
   }
@@ -157,8 +155,8 @@ export default function BibleDashboard({ project, characters, relationships, loc
       </div>
 
       {/* Stats row */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:24 }}>
-        {[['◉','Characters',characters.length,'characters'],['⬡','Relationships',relationships.length,'ties'],['◎','Locations',locations.length,'locations'],['▤','Words',words.toLocaleString(),'write']].map(([icon,label,val,mod]) => (
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:24 }}>
+        {[['◉','Characters',characters.length,'characters'],['⬡','Relationships',relationships.length,'ties'],['▤','Words',words.toLocaleString(),'write']].map(([icon,label,val,mod]) => (
           <div key={label} style={{ background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:10, padding:'14px 16px', cursor:'pointer', transition:'border-color .15s' }}
             onClick={() => onNavigate(mod)}
             onMouseEnter={e => e.currentTarget.style.borderColor='var(--gold-dim)'}
@@ -236,26 +234,27 @@ export default function BibleDashboard({ project, characters, relationships, loc
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                     {fullRead.relationshipShifts.map((shift, i) => {
-                      const key       = `${shift.characterA}-${shift.characterB}`
+                      const key       = `${shift.character_a}-${shift.character_b}-${shift.sequence_index}`
                       const color     = REL_COLORS[shift.type] || 'var(--muted)'
                       const confirmed = confirmingShifts[key]
                       return (
                         <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', background:'var(--s2)', border:`1px solid ${confirmed ? 'var(--success)' : 'var(--edge)'}`, borderRadius:8, transition:'border-color .2s' }}>
                           <div style={{ flex:1 }}>
                             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
-                              <span style={{ fontSize:13, color:'var(--text)', fontWeight:400 }}>{shift.characterA}</span>
+                              <span style={{ fontSize:13, color:'var(--text)', fontWeight:400 }}>{shift.character_a}</span>
                               <span style={{ fontSize:10, color, background:color+'14', padding:'2px 8px', borderRadius:3, textTransform:'capitalize' }}>{shift.type}</span>
-                              <span style={{ fontSize:13, color:'var(--text)', fontWeight:400 }}>{shift.characterB}</span>
-                              <span style={{ fontSize:10, color:'var(--dim)', marginLeft:'auto' }}>{shift.act} · {shift.tension}/100</span>
+                              <span style={{ fontSize:13, color:'var(--text)', fontWeight:400 }}>{shift.character_b}</span>
+                              <span style={{ fontSize:10, color:'var(--dim)', marginLeft:'auto' }}>{shift.segment_label} · {shift.tension}/100</span>
                             </div>
-                            <div style={{ fontSize:12, color:'var(--muted)', fontWeight:300, lineHeight:1.5 }}>{shift.shift}</div>
+                            <div style={{ fontSize:12, color:'var(--muted)', fontWeight:300, lineHeight:1.5 }}>{shift.summary}</div>
+                            <div style={{ fontSize:11, color:'var(--dim)', fontWeight:300, lineHeight:1.5, marginTop:4 }}>Evidence: “{shift.evidence}”</div>
                           </div>
                           <button
                             onClick={() => confirmRelShift(shift)}
                             disabled={confirmed}
                             style={{ fontSize:11, padding:'5px 12px', borderRadius:5, border:'none', background: confirmed ? 'var(--success)' : 'var(--gold)', color:'var(--bg)', fontWeight:500, cursor: confirmed ? 'default' : 'pointer', fontFamily:'var(--font-ui)', flexShrink:0, opacity: confirmed ? 0.7 : 1 }}
                           >
-                            {confirmed ? '✓ Added' : 'Add to arc'}
+                            {confirmed ? '✓ Added' : 'Confirm event'}
                           </button>
                         </div>
                       )
@@ -280,6 +279,8 @@ export default function BibleDashboard({ project, characters, relationships, loc
                             <div style={{ fontSize:12, color:'var(--text)', fontWeight:500, marginBottom:3 }}>{drift.character}</div>
                             <div style={{ fontSize:12, color:'var(--muted)', fontWeight:300, lineHeight:1.5, marginBottom:3 }}>{drift.observation}</div>
                             <div style={{ fontSize:11, color:'var(--dim)', fontWeight:300 }}>Bible says: {drift.bibleEntry}</div>
+                            <div style={{ fontSize:11, color:'var(--dim)', fontWeight:300, marginTop:4 }}>Evidence: “{drift.evidence}”</div>
+                            <div style={{ fontSize:11, color:'var(--gold)', fontWeight:300, marginTop:4 }}>Question: {drift.question}</div>
                           </div>
                         </div>
                       )
@@ -385,15 +386,6 @@ export default function BibleDashboard({ project, characters, relationships, loc
               </div>
             )
           })}
-        </Mini>
-
-        <Mini title="Locations" onMore={() => onNavigate('locations')}>
-          {locations.length === 0 ? <Empty>No locations yet</Empty> : locations.slice(0,3).map(l => (
-            <div key={l.id} style={{ padding:'7px 0', borderBottom:'1px solid var(--edge)' }}>
-              <div style={{ fontSize:12, color:'var(--text)', fontWeight:400, marginBottom:2 }}>{l.name}</div>
-              {l.atmosphere && <div style={{ fontSize:11, color:'var(--muted)', fontWeight:300 }}>{l.atmosphere.slice(0,70)}{l.atmosphere.length>70?'…':''}</div>}
-            </div>
-          ))}
         </Mini>
 
         <Mini title="Story" onMore={() => onNavigate('write')}>

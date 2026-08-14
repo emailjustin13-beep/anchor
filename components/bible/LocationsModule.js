@@ -1,6 +1,10 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import {
+  locationImageExtension,
+  resolveLocationImageUrl,
+} from '../../lib/locationImages'
 
 const FIELDS = [
   {key:'description', label:'Description',       placeholder:'What does this place look like?',   rows:3},
@@ -14,9 +18,39 @@ export default function LocationsModule({ project, locations, onCreateLocation, 
   const [dirty, setDirty]     = useState(false)
   const [saving, setSaving]   = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [imageSources, setImageSources] = useState({})
+  const [imageError, setImageError] = useState('')
   const fileRef = useRef(null)
 
-  function select(l) { setSel(l); setForm({...l}); setDirty(false) }
+  useEffect(() => {
+    let active = true
+
+    async function refreshImageSources() {
+      const entries = await Promise.all(locations.map(async location => {
+        if (!location.image_url) return [location.id, '']
+        try {
+          return [location.id, await resolveLocationImageUrl(supabase, location.image_url)]
+        } catch {
+          return [location.id, '']
+        }
+      }))
+      if (active) setImageSources(Object.fromEntries(entries))
+    }
+
+    refreshImageSources()
+    const refreshTimer = window.setInterval(refreshImageSources, 50 * 60 * 1000)
+    return () => {
+      active = false
+      window.clearInterval(refreshTimer)
+    }
+  }, [locations])
+
+  function select(l) {
+    setSel(l)
+    setForm({...l})
+    setDirty(false)
+    setImageError('')
+  }
   function field(k,v) { setForm(f=>({...f,[k]:v})); setDirty(true) }
 
   async function save() {
@@ -35,16 +69,31 @@ export default function LocationsModule({ project, locations, onCreateLocation, 
     const file = e.target.files?.[0]
     if (!file || !sel) return
     setUploading(true)
-    const ext  = file.name.split('.').pop()
-    const path = `${project.id}/${sel.id}.${ext}`
-    const { error } = await supabase.storage.from('location-images').upload(path, file, { upsert:true })
-    if (!error) {
-      const { data: { publicUrl } } = supabase.storage.from('location-images').getPublicUrl(path)
-      field('image_url', publicUrl)
-      await onUpdateLocation(sel.id, { ...form, image_url: publicUrl })
+    setImageError('')
+
+    try {
+      const ext = locationImageExtension(file)
+      const path = `${project.id}/${sel.id}.${ext}`
+      const { error } = await supabase.storage.from('location-images').upload(path, file, { upsert:true })
+      if (error) throw error
+
+      const signedUrl = await resolveLocationImageUrl(supabase, path)
+      const nextForm = { ...form, image_url:path }
+      await onUpdateLocation(sel.id, nextForm)
+      setForm(nextForm)
+      setSel(current => current ? { ...current, image_url:path } : current)
+      setImageSources(current => ({ ...current, [sel.id]:signedUrl }))
+      setDirty(false)
+    } catch (error) {
+      setImageError(error?.message || 'The reference image could not be saved. Please try again.')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
     }
-    setUploading(false)
   }
+
+  const selectedImageSource = sel ? imageSources[sel.id] : ''
+  const selectedImageLoaded = sel ? Object.hasOwn(imageSources, sel.id) : false
 
   return (
     <div style={{ display:'flex', height:'100%', overflow:'hidden', background:'var(--bg)' }}>
@@ -55,12 +104,15 @@ export default function LocationsModule({ project, locations, onCreateLocation, 
         </div>
         <div style={{ flex:1, overflow:'auto', padding:'8px 6px' }}>
           {locations.length === 0 && <div style={{ fontSize:12, color:'var(--dim)', padding:'12px 8px', fontStyle:'italic', fontWeight:300 }}>No locations yet</div>}
-          {locations.map(l => (
-            <div key={l.id} onClick={()=>select(l)} style={{ padding:'9px 8px', borderRadius:6, marginBottom:2, cursor:'pointer', background:sel?.id===l.id?'var(--gold-bg)':'transparent', border:`1px solid ${sel?.id===l.id?'rgba(200,169,106,.2)':'transparent'}` }}>
-              {l.image_url && <div style={{ width:'100%', height:44, borderRadius:4, overflow:'hidden', marginBottom:5 }}><img src={l.image_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} /></div>}
-              <div style={{ fontSize:12, color:sel?.id===l.id?'var(--text)':'var(--muted)', fontWeight:sel?.id===l.id?400:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.name}</div>
-            </div>
-          ))}
+          {locations.map(l => {
+            const imageSource = imageSources[l.id]
+            return (
+              <div key={l.id} onClick={()=>select(l)} style={{ padding:'9px 8px', borderRadius:6, marginBottom:2, cursor:'pointer', background:sel?.id===l.id?'var(--gold-bg)':'transparent', border:`1px solid ${sel?.id===l.id?'rgba(200,169,106,.2)':'transparent'}` }}>
+                {imageSource && <div style={{ width:'100%', height:44, borderRadius:4, overflow:'hidden', marginBottom:5 }}><img src={imageSource} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} /></div>}
+                <div style={{ fontSize:12, color:sel?.id===l.id?'var(--text)':'var(--muted)', fontWeight:sel?.id===l.id?400:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.name}</div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -74,12 +126,16 @@ export default function LocationsModule({ project, locations, onCreateLocation, 
             </div>
           </div>
 
-          {form.image_url ? (
+          {form.image_url && selectedImageSource ? (
             <div style={{ position:'relative', borderRadius:8, overflow:'hidden', marginBottom:20, maxHeight:240 }}>
-              <img src={form.image_url} alt={form.name} style={{ width:'100%', objectFit:'cover', display:'block' }} />
+              <img src={selectedImageSource} alt={form.name} style={{ width:'100%', objectFit:'cover', display:'block' }} />
               <button onClick={()=>fileRef.current?.click()} style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.7)', color:'white', border:'1px solid rgba(255,255,255,.2)', borderRadius:5, padding:'5px 10px', fontSize:11, cursor:'pointer' }}>
                 {uploading?'Uploading…':'Replace image'}
               </button>
+            </div>
+          ) : form.image_url ? (
+            <div onClick={()=>fileRef.current?.click()} style={{ border:'1px dashed var(--edge)', borderRadius:8, padding:32, textAlign:'center', cursor:'pointer', color:'var(--dim)', fontSize:13, marginBottom:20, fontWeight:300 }}>
+              {selectedImageLoaded ? 'Reference image unavailable — choose a replacement' : 'Loading reference image…'}
             </div>
           ) : (
             <div onClick={()=>fileRef.current?.click()} style={{ border:'1px dashed var(--edge)', borderRadius:8, padding:32, textAlign:'center', cursor:'pointer', color:'var(--dim)', fontSize:13, marginBottom:20, fontWeight:300 }}>
@@ -87,6 +143,7 @@ export default function LocationsModule({ project, locations, onCreateLocation, 
             </div>
           )}
           <input ref={fileRef} type="file" accept="image/*" onChange={uploadImage} style={{ display:'none' }} />
+          {imageError && <div style={{ color:'var(--danger)', fontSize:12, marginTop:-10, marginBottom:18 }}>{imageError}</div>}
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, maxWidth:780 }}>
             {FIELDS.map(f => (

@@ -8,7 +8,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <div className="anchor-build-marker no-print">Editor 0.4.8 Inky Motion</div>
+      </body>
     </html>
   )
 }

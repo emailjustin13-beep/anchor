@@ -16,8 +16,15 @@ const FIELDS = [
 ]
 
 const COLORS = ['#C8A96A','#58A6FF','#3FB950','#DB61A2','#FF7B72','#D2A8FF','#FFA657','#38BDAE']
+const LIFE_STATES = [
+  ['alive', 'Alive'],
+  ['missing', 'Missing'],
+  ['presumed_dead', 'Presumed dead'],
+  ['deceased', 'Deceased'],
+  ['unknown', 'Unknown'],
+]
 
-export default function CharactersModule({ characters, onCreateCharacter, onUpdateCharacter, onDeleteCharacter }) {
+export default function CharactersModule({ characters, characterStateEvents = [], onCreateCharacter, onUpdateCharacter, onDeleteCharacter }) {
   const [sel, setSel]       = useState(null)
   const [form, setForm]     = useState({})
   const [dirty, setDirty]   = useState(false)
@@ -54,7 +61,9 @@ export default function CharactersModule({ characters, onCreateCharacter, onUpda
               <div style={{ width:26, height:26, borderRadius:'50%', background:c.color+'14', border:`1px solid ${c.color}30`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:c.color, fontWeight:500, flexShrink:0 }}>{c.name?.charAt(0)}</div>
               <div style={{ overflow:'hidden' }}>
                 <div style={{ fontSize:12, color:sel?.id===c.id?'var(--text)':'var(--muted)', fontWeight:sel?.id===c.id?400:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</div>
-                {c.role && <div style={{ fontSize:10, color:'var(--dim)', fontWeight:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.role}</div>}
+                <div style={{ fontSize:10, color:c.life_state === 'deceased' ? 'var(--danger)' : 'var(--dim)', fontWeight:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {c.role || 'No role'}{c.life_state && c.life_state !== 'alive' ? ` · ${c.life_state.replace('_', ' ')}` : ''}
+                </div>
               </div>
             </div>
           ))}
@@ -81,6 +90,13 @@ export default function CharactersModule({ characters, onCreateCharacter, onUpda
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, maxWidth:820 }}>
+            <div className="field">
+              <label>Life state</label>
+              <select value={form.life_state || 'alive'} onChange={e => field('life_state', e.target.value)}>
+                {LIFE_STATES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <div style={{ fontSize:10, color:'var(--dim)', lineHeight:1.5, marginTop:5 }}>A death changes the character's state; it never removes their history from the bible.</div>
+            </div>
             {FIELDS.map(f => (
               <div key={f.key} className="field">
                 <label>{f.label}</label>
@@ -91,6 +107,25 @@ export default function CharactersModule({ characters, onCreateCharacter, onUpda
               </div>
             ))}
           </div>
+
+          {characterStateEvents.some(event => event.character_id === sel.id) && (
+            <div style={{ maxWidth:820, marginTop:20, borderTop:'1px solid var(--edge)', paddingTop:16 }}>
+              <div style={{ fontSize:10, color:'var(--gold)', textTransform:'uppercase', letterSpacing:'.08em', fontWeight:500, marginBottom:10 }}>State timeline</div>
+              {characterStateEvents
+                .filter(event => event.character_id === sel.id)
+                .sort((a, b) => a.sequence_index - b.sequence_index)
+                .map(event => (
+                  <div key={event.id} style={{ padding:'10px 12px', background:'var(--s1)', border:'1px solid var(--edge)', borderRadius:7, marginBottom:8 }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
+                      <span style={{ fontSize:11, color:'var(--gold)', fontWeight:500 }}>{event.segment_label}</span>
+                      <span style={{ fontSize:10, color:event.state === 'deceased' ? 'var(--danger)' : 'var(--muted)', textTransform:'capitalize' }}>{event.state.replace('_', ' ')}</span>
+                    </div>
+                    <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.5 }}>{event.summary}</div>
+                    {event.evidence && <div style={{ fontSize:11, color:'var(--dim)', fontStyle:'italic', lineHeight:1.5, marginTop:4 }}>“{event.evidence}”</div>}
+                  </div>
+                ))}
+            </div>
+          )}
 
           {dirty && <div style={{ marginTop:20 }}><button className="btn btn-gold" onClick={save} disabled={saving}>{saving?'Saving…':'Save changes'}</button></div>}
         </div>

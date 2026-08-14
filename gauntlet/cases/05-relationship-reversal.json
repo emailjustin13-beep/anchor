@@ -1,0 +1,55 @@
+{
+  "id": "case-05-relationship-reversal",
+  "title": "Unearned betrayal versus an earned relationship break",
+  "characters": [
+    { "id": "marisol", "name": "Marisol Vega", "role": "Ana's partner", "goals": "Protect Ana and her sister", "fears": "Betrayal", "personality": "Loyal", "voice": "Warm but firm", "life_state": "alive" },
+    { "id": "ana", "name": "Ana Torres", "role": "Investigator", "goals": "Expose Vale", "fears": "Losing Marisol", "personality": "Driven", "voice": "Blunt", "life_state": "alive" },
+    { "id": "vale", "name": "Director Vale", "role": "Antagonist", "goals": "Control the investigation", "fears": "Exposure", "personality": "Cold", "voice": "Formal", "life_state": "alive" }
+  ],
+  "relationships": [
+    { "id": "marisol-ana", "character_a": "marisol", "character_b": "ana", "type": "romantic", "tension": 20, "status": "Committed partners who protect each other" }
+  ],
+  "issues": {
+    "marisol_betrayal": {
+      "finding": {
+        "category": "relationship",
+        "priority": "medium",
+        "title": "Marisol reverses her promise to protect Ana",
+        "summary": "Marisol makes an explicit promise never to give Vale evidence against Ana, then does exactly that without an on-page relationship change.",
+        "question": "Is Marisol's reversal of her promise to Ana intentional at this point?",
+        "integrity_basis": "unearned_relationship_reversal",
+        "conflicting_fact_a": "Marisol promises never to give Vale evidence against Ana.",
+        "conflicting_fact_b": "Marisol hands Vale Ana's drive and identifies it as everything he needs.",
+        "plausible_inference": false,
+        "inference_explanation": "No current scene changes their relationship or Marisol's stated commitment.",
+        "possibilities": [],
+        "characters": ["Marisol Vega", "Ana Torres", "Director Vale"],
+        "evidence": [
+          { "quote": "No matter what happens, I will never give Vale evidence against you.", "location": "INT. ANA'S APARTMENT - NIGHT" },
+          { "quote": "Marisol hands Vale Ana's evidence drive.", "location": "INT. DIRECTOR VALE'S OFFICE - MORNING" }
+        ]
+      },
+      "match": { "categories": ["relationship", "character"], "integrity_bases": ["unearned_relationship_reversal", "unearned_character_reversal"], "characters": ["Marisol Vega", "Ana Torres"], "evidence_all": ["never give vale", "hands vale"] }
+    }
+  },
+  "revisions": [
+    {
+      "id": "unearned-betrayal",
+      "script": "[scene]INT. ANA'S APARTMENT - NIGHT\n[character]MARISOL\n[dialogue]No matter what happens, I will never give Vale evidence against you.\n[action]Ana takes Marisol's hand.\n[scene]INT. DIRECTOR VALE'S OFFICE - MORNING\n[action]Marisol hands Vale Ana's evidence drive.\n[character]MARISOL\n[dialogue]Everything you need is on there.",
+      "expect": { "active": ["marisol_betrayal"], "resolved": [], "dismissed": [], "forbidden": ["add a confrontation"], "scan_mode": "initial" },
+      "mock": { "new": ["marisol_betrayal"] }
+    },
+    {
+      "id": "relationship-break-earns-shift",
+      "script": "[scene]INT. ANA'S APARTMENT - NIGHT\n[character]MARISOL\n[dialogue]No matter what happens, I will never give Vale evidence against you.\n[action]Ana takes Marisol's hand.\n[scene]INT. PARKING GARAGE - PRE-DAWN\n[action]Vale shows Marisol footage of Ana using Marisol's sister as bait. Ana confirms she approved the plan.\n[character]MARISOL\n[dialogue]You used my sister. We are done.\n[scene]INT. DIRECTOR VALE'S OFFICE - MORNING\n[action]Marisol hands Vale Ana's evidence drive.\n[character]MARISOL\n[dialogue]Everything you need is on there.",
+      "expect": { "active": [], "resolved": ["marisol_betrayal"], "dismissed": [], "forbidden": ["sudden betrayal"], "scan_mode": "incremental" },
+      "mock": { "decisions": { "marisol_betrayal": { "status": "resolved", "resolution_basis": "on_page_bridge", "resolution_evidence": [{ "quote": "You used my sister. We are done.", "location": "INT. PARKING GARAGE - PRE-DAWN" }], "decision_explanation": "The relationship break supplies the bridge for Marisol's changed choice." } } }
+    },
+    {
+      "id": "relationship-bridge-removed",
+      "script": "[scene]INT. ANA'S APARTMENT - NIGHT\n[character]MARISOL\n[dialogue]No matter what happens, I will never give Vale evidence against you.\n[action]Ana takes Marisol's hand.\n[scene]INT. DIRECTOR VALE'S OFFICE - MORNING\n[action]Marisol hands Vale Ana's evidence drive.\n[character]MARISOL\n[dialogue]Everything you need is on there.",
+      "expect": { "active": ["marisol_betrayal"], "resolved": [], "dismissed": [], "forbidden": [], "scan_mode": "incremental" },
+      "mock": { "decisions": { "marisol_betrayal": { "status": "reopened", "resolution_basis": "not_applicable", "resolution_evidence": [], "plausible_inference": false, "decision_explanation": "The relationship break was removed.", "finding": { "category": "character", "integrity_basis": "unearned_character_reversal", "title": "Marisol's absolute vow reverses after the bridge is removed", "summary": "The former relationship bridge is absent, so Marisol's promise and changed action conflict again.", "characters": ["Marisol Vega", "Ana Torres", "Director Vale"], "evidence": [{ "quote": "No matter what happens, I will never give Vale evidence against you.", "location": "Scene 1 — INT. ANA'S APARTMENT - NIGHT" }, { "quote": "Everything you need is on there.", "location": "Scene 2 — INT. DIRECTOR VALE'S OFFICE - MORNING" }] } } } }
+    }
+  ]
+}
